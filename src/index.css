@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  /* Jio Club Theme Colors */
+  --color-primary: #32D74B; 
+  --color-primary-dark: #28a73a;
+  --color-bg-base: #031405; /* Deep dark green */
+  --color-card-base: rgba(16, 48, 20, 0.6); /* Translucent green glass */
+  --color-text-main: #FFFFFF;
+  --color-text-muted: #9CA3AF;
+  --color-success: #32D74B;
+  --color-danger: #FF453A;
+  
+  /* Animations */
+  --animate-marquee: marquee 15s linear infinite;
+  --animate-spin-slow: spin-slow 3s linear infinite;
+  --animate-spin-once: spin 0.6s cubic-bezier(0.4, 0, 0.2, 1) 1;
+  --animate-fade-in: fade-in 0.3s ease-out forwards;
+  --animate-fade-in-up: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-scale-in: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@layer base {
+  body {
+    @apply text-text-main font-sans antialiased selection:bg-primary/30 min-h-screen relative;
+    /* Rich dark green radial background */
+    background: radial-gradient(120% 120% at 50% -20%, #103a11 0%, #020a02 100%);
+    background-attachment: fixed;
+  }
+
+  /* Global button click effect */
+  button:not(:disabled) {
+    @apply active:scale-[0.96] transition-transform duration-150 ease-out;
+  }
+}
+
+/* Base custom utilities */
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(180deg, #FFFFFF 0%, #A1A1A6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .bg-gradient-gold {
+    background: linear-gradient(135deg, #F9D423 0%, #D4AF37 100%);
+  }
+
+  /* Liquid Glass Effect for Cards */
+  .bg-gradient-card {
+    background: rgba(40, 90, 45, 0.1);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 0.5px solid rgba(50, 215, 75, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Applying glassmorphism directly to standard card base config */
+  .bg-card-base {
+    background: rgba(16, 42, 20, 0.6) !important;
+    backdrop-filter: blur(24px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+    border: 0.5px solid rgba(50, 215, 75, 0.15) !important;
+    box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+  }
+  
+  .glass-panel {
+    background: rgba(4, 20, 8, 0.7);
+    backdrop-filter: blur(30px) saturate(200%);
+    -webkit-backdrop-filter: blur(30px) saturate(200%);
+    border-top: 0.5px solid rgba(50, 215, 75, 0.2);
+  }
+
+  /* Utility to hide scrollbar but keep functionality */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+}
