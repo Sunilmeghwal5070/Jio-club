@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #1a1a2e; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-yellow-500">🏆 Game Admin Panel</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- User Control -->
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+                <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">User Management</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Total Balance (₹)</label>
+                        <input type="number" id="balanceInput" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white outline-none focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Total Deposit (₹)</label>
+                        <input type="number" id="depositInput" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white outline-none focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">VIP Level</label>
+                        <input type="number" id="vipInput" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white outline-none focus:border-yellow-500">
+                    </div>
+                    <button onclick="saveUser()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 rounded transition-colors">
+                        Save User Data
+                    </button>
+                    <button onclick="deleteUser()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded transition-colors mt-2">
+                        Reset / Delete User Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game Management -->
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+                <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">Game Operations</h2>
+                <div class="space-y-4">
+                    <button onclick="clearTransactions()" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 rounded transition-colors">
+                        Clear Deposit/Withdraw History
+                    </button>
+                    <button onclick="clearBonus()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded transition-colors">
+                        Clear Bonus History
+                    </button>
+                    <button onclick="deleteAuth()" class="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-2 rounded transition-colors">
+                        Force Logout (Clear Auth)
+                    </button>
+                </div>
+                
+                <h2 class="text-xl font-bold mt-6 mb-4 border-b border-gray-600 pb-2">Send Notification</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Popup Title</label>
+                        <input type="text" id="popupTitle" value="NOTIFICATION" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white outline-none focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Popup Message</label>
+                        <textarea id="popupMessage" rows="3" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white outline-none focus:border-yellow-500"></textarea>
+                    </div>
+                    <button onclick="sendPopup()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded transition-colors">
+                        Send Popup Notification
+                    </button>
+                    <div class="border-t border-gray-700 my-4 pt-4"></div>
+                    <button onclick="addNotification()" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded transition-colors">
+                        Ping User (+1 Unread Dot)
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-6 text-center text-gray-500 text-sm">
+            Make changes here, then refresh the game to see updates.
+        </div>
+    </div>
+
+    <script>
+        function loadUser() {
+            try {
+                const userObj = JSON.parse(localStorage.getItem('userState'));
+                if (userObj) {
+                    document.getElementById('balanceInput').value = userObj.totalBalance || 0;
+                    document.getElementById('depositInput').value = userObj.totalDeposit || 0;
+                    document.getElementById('vipInput').value = userObj.vipLevel || 0;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function saveUser() {
+            try {
+                let userObj = JSON.parse(localStorage.getItem('userState')) || {};
+                userObj.totalBalance = Number(document.getElementById('balanceInput').value);
+                userObj.totalDeposit = Number(document.getElementById('depositInput').value);
+                userObj.vipLevel = Number(document.getElementById('vipInput').value);
+                localStorage.setItem('userState', JSON.stringify(userObj));
+                alert('User updated successfully!');
+            } catch (e) {
+                alert('Failed to update user.');
+            }
+        }
+
+        function deleteUser() {
+            if(confirm('Are you sure you want to delete user data?')) {
+                localStorage.removeItem('userState');
+                document.getElementById('balanceInput').value = '';
+                document.getElementById('depositInput').value = '';
+                document.getElementById('vipInput').value = '';
+                alert('User data deleted.');
+            }
+        }
+
+        function clearTransactions() {
+            if(confirm('Clear all transactions?')) {
+                localStorage.setItem('transactionsState', '[]');
+                alert('Transactions cleared.');
+            }
+        }
+
+        function clearBonus() {
+            if(confirm('Clear all bonus records?')) {
+                localStorage.setItem('bonusRecords', '[]');
+                alert('Bonus records cleared.');
+            }
+        }
+
+        function deleteAuth() {
+            if(confirm('Force logout the user?')) {
+                localStorage.setItem('auth', 'false');
+                localStorage.setItem('route', 'login');
+                alert('Auth cleared.');
+            }
+        }
+
+        function addNotification() {
+            let unread = Number(localStorage.getItem('unreadNotifications') || 0);
+            unread += 1;
+            localStorage.setItem('unreadNotifications', unread);
+            alert(`Notification dot sent! Total unread: ${unread}`);
+        }
+
+        function sendPopup() {
+            const title = document.getElementById('popupTitle').value;
+            const message = document.getElementById('popupMessage').value;
+            if (!message) return alert('Enter a message first');
+            
+            const data = { title, message, timestamp: Date.now() };
+            localStorage.setItem('admin_popup', JSON.stringify(data));
+            alert('Popup notification sent! It will appear on user screen.');
+        }
+
+        // Initialize
+        loadUser();
+    </script>
+</body>
+</html>

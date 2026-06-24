@@ -70,8 +70,8 @@ export function WithdrawHistory() {
            {filtered.length > 0 ? filtered.map(tx => (
              <div key={tx.id} className="bg-card-base rounded-xl p-4 shadow-sm border border-card-base">
                 <div className="flex justify-between items-center mb-4">
-                  <div className="bg-orange-500 text-white text-sm font-bold px-3 py-1 rounded">Withdraw</div>
-                  <div className={cn("text-sm font-bold", tx.status === 'Complete' ? "text-green-500" : "text-red-500")}>
+                  <div className="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded">Withdraw</div>
+                  <div className={cn("text-sm font-bold", tx.status === 'Complete' ? "text-blue-500" : "text-red-500")}>
                     {tx.status}
                   </div>
                 </div>

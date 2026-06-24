@@ -72,9 +72,9 @@ export function Activity() {
 
       {/* Banner 1 */}
       <div className="mx-4 bg-card-base rounded-2xl overflow-hidden mb-4 border border-card-base shadow-sm">
-        <div className="h-32 bg-gradient-to-r from-emerald-400 to-teal-400 relative p-4 flex flex-col justify-center">
-            <div className="text-yellow-200 text-[10px] font-bold tracking-widest uppercase items-center flex gap-1 mb-1">
-              Lucky 10 Days ♣️
+        <div className="h-32 bg-gradient-to-r from-blue-400 to-cyan-400 relative p-4 flex flex-col justify-center">
+            <div className="text-blue-900 text-[10px] font-bold tracking-widest uppercase items-center flex gap-1 mb-1">
+              Jio Club Event ♣️
             </div>
             <div className="text-3xl font-black text-yellow-300 drop-shadow-md">
               <span className="text-xl">₹</span>308,000
@@ -87,7 +87,7 @@ export function Activity() {
               🎰
             </div>
         </div>
-        <div className="py-2.5 px-4 font-semibold text-sm">Lucky 10 Days</div>
+        <div className="py-2.5 px-4 font-semibold text-sm">Jio Club Event</div>
       </div>
       
       {/* Banner 2 */}

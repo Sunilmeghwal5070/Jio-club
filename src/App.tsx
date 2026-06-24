@@ -27,11 +27,19 @@ import { FirstDepositModal } from './components/FirstDepositModal';
 import { GlobalOverlays } from './components/GlobalOverlays';
 
 import { Wingo } from './pages/Wingo';
+import { WalletContainer } from './pages/WalletContainer';
+import { AboutUs } from './pages/AboutUs';
+import { Announcement } from './pages/Announcement';
+import { BeginnerGuide } from './pages/BeginnerGuide';
+import { Feedback } from './pages/Feedback';
 import { ChangeAvatar } from './pages/ChangeAvatar';
 import { ChangePassword } from './pages/ChangePassword';
 import { BonusHistory } from './pages/BonusHistory';
 import { AttendanceHistory } from './pages/AttendanceHistory';
 import { AttendanceRules } from './pages/AttendanceRules';
+
+import { DepositPayment } from './pages/DepositPayment';
+import { SystemPopup } from './components/SystemPopup';
 
 function MainLayout() {
   const { currentRoute, isAuthenticated, showCaptcha, showFirstDeposit } = useApp();
@@ -44,11 +52,16 @@ function MainLayout() {
 
     switch (currentRoute) {
       case 'home': return <Home />;
+      case 'depositPayment': return <DepositPayment />;
       case 'wingo': return <Wingo />;
-      case 'wallet': return <Wallet />;
+      case 'wallet': return <WalletContainer />;
       case 'account': return <Account />;
       case 'activity': return <Activity />;
       case 'promotion': return <Promotion />;
+      case 'feedback': return <Feedback />;
+      case 'announcement': return <Announcement />;
+      case 'beginnerGuide': return <BeginnerGuide />;
+      case 'aboutUs': return <AboutUs />;
       case 'depositHistory': return <DepositHistory />;
       case 'withdrawHistory': return <WithdrawHistory />;
       case 'gameHistory': return <GameHistory />;
@@ -75,12 +88,22 @@ function MainLayout() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-bg-base min-h-screen text-white relative shadow-2xl pb-16 font-sans">
-      {renderPage()}
+    <div className="w-full max-w-md mx-auto bg-bg-base min-h-screen text-white relative shadow-2xl font-sans overflow-x-hidden">
+      <div className={currentRoute === 'wingo' ? 'hidden' : ''}>
+         {renderPage()}
+      </div>
+      
+      {currentRoute === 'wingo' && (
+        <div className="fixed inset-0 z-[110] bg-bg-base overflow-y-auto">
+          <Wingo />
+        </div>
+      )}
+
       <BottomNav />
       {showCaptcha && <CaptchaModal />}
       {showFirstDeposit && <FirstDepositModal />}
       <GlobalOverlays />
+      <SystemPopup />
     </div>
   );
 }

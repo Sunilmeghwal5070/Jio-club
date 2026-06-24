@@ -1,23 +1,136 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp, getVipDetails } from '../store';
 import { Header } from '../components/Header';
 import { Clock, BookOpen, Volume2, RefreshCw } from 'lucide-react';
+import { rtdb } from '../firebase';
+import { ref, set } from 'firebase/database';
 
 import { formatCurrency } from '../utils';
 
+// Optimized sub-components for Wingo performance
+const HistoryTable = React.memo(({ historyData, historyPage, setHistoryPage }: { 
+  historyData: any[], 
+  historyPage: number, 
+  setHistoryPage: React.Dispatch<React.SetStateAction<number>> 
+}) => {
+  const pageSize = 10;
+  const currentData = React.useMemo(() => 
+    historyData.slice((historyPage - 1) * pageSize, historyPage * pageSize),
+    [historyData, historyPage]
+  );
+
+  return (
+    <div className="bg-gradient-card rounded-[24px] overflow-hidden shadow-2xl mb-4">
+      <div className="grid grid-cols-5 bg-white/10 backdrop-blur-md text-white text-[11px] uppercase tracking-wider font-bold py-3 px-2 text-center border-b border-white/10">
+        <div className="col-span-2 text-left pl-3">Period</div>
+        <div>Number</div>
+        <div>Size</div>
+        <div>Color</div>
+      </div>
+      <div className="flex flex-col">
+        {currentData.map((row, i) => (
+          <div key={row.period} className={`grid grid-cols-5 py-3 px-2 text-center items-center text-sm ${i !== 9 ? 'border-b border-white/5' : ''}`}>
+            <div className="col-span-2 text-left pl-3 font-mono text-gray-300 tracking-tight text-xs">{row.period}</div>
+            <div className={`font-black text-xl drop-shadow-md ${row.num % 2 === 0 ? 'text-[#FF453A]' : 'text-emerald-500'}`}>{row.num}</div>
+            <div className="text-gray-200 font-medium text-xs">{row.size}</div>
+            <div className="flex justify-center">
+              {row.color.includes('split') ? (
+                <div className="flex gap-0.5">
+                  <span className={`w-3 h-3 rounded-full shadow-sm ${row.color.includes('red') ? 'bg-[#FF453A]' : 'bg-emerald-500'}`}></span>
+                  <span className="w-3 h-3 rounded-full bg-purple-500 shadow-sm"></span>
+                </div>
+              ) : (
+                <span className={`w-3 h-3 rounded-full shadow-sm ${row.color === 'red' ? 'bg-[#FF453A]' : 'bg-emerald-500'}`}></span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <div className="flex items-center justify-center gap-4 py-3 bg-black/20 border-t border-white/5">
+         <button 
+            onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+            disabled={historyPage === 1}
+            className="w-8 h-8 rounded bg-white/5 flex items-center justify-center disabled:opacity-30"
+         >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+         </button>
+         <span className="text-sm font-medium text-gray-400">{historyPage}/{Math.ceil(historyData.length / pageSize)}</span>
+         <button 
+            onClick={() => setHistoryPage(p => Math.min(Math.ceil(historyData.length / pageSize), p + 1))}
+            disabled={historyPage >= Math.ceil(historyData.length / pageSize)}
+            className="w-8 h-8 rounded bg-blue-500 text-white flex items-center justify-center disabled:opacity-50"
+         >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+         </button>
+      </div>
+    </div>
+  );
+});
+
+// Timer component to prevent re-rendering the whole Wingo component every second
+const CountdownDisplay = React.memo(({ duration, now }: { duration: number, now: number }) => {
+  const getRemainingTime = (timestamp: number, durationSeconds: number) => {
+    const startOfDay = new Date(timestamp).setHours(0,0,0,0);
+    const msPassed = timestamp - startOfDay;
+    const durationMs = durationSeconds * 1000;
+    const currentPeriodStartMs = Math.floor(msPassed / durationMs) * durationMs;
+    const currentPeriodEndMs = currentPeriodStartMs + durationMs;
+    return Math.max(0, Math.ceil((startOfDay + currentPeriodEndMs - timestamp) / 1000));
+  };
+
+  const timeLeft = getRemainingTime(now, duration);
+
+  return (
+    <div className="flex items-center gap-1 mb-2 justify-end">
+      <div className="w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono text-emerald-500">0</div>
+      <div className="w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono text-emerald-500">{Math.floor(timeLeft / 60)}</div>
+      <div className="font-bold pb-1 text-emerald-500">:</div>
+      <div className={`w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono ${timeLeft <= 5 ? 'text-red-500' : 'text-emerald-500'}`}>
+        {Math.floor((timeLeft % 60) / 10)}
+      </div>
+      <div className={`w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono ${timeLeft <= 5 ? 'text-red-500' : 'text-emerald-500'}`}>
+        {timeLeft % 10}
+      </div>
+    </div>
+  );
+});
+
+// Large timer overlay for last 5 seconds
+const TimerOverlay = React.memo(({ timeLeft }: { timeLeft: number }) => {
+  if (timeLeft > 5) return null;
+  return (
+    <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm rounded-2xl flex items-center justify-center gap-4 animate-fade-in">
+        <div className="w-24 h-36 bg-card-base border-2 border-white/20 rounded-xl flex items-center justify-center text-[100px] font-bold text-[#F9D423] shadow-2xl">
+          {Math.floor((timeLeft % 60) / 10)}
+        </div>
+        <div className="w-24 h-36 bg-card-base border-2 border-white/20 rounded-xl flex items-center justify-center text-[100px] font-bold text-[#F9D423] shadow-2xl">
+          {timeLeft % 10}
+        </div>
+    </div>
+  );
+});
+
 export function Wingo() {
-  const { user, setUser, showToast, navigate } = useApp();
+  const { user, setUser, showToast, navigate, myBets, setMyBets } = useApp();
   const [activeTab, setActiveTab] = useState('1min');
   const [historyTab, setHistoryTab] = useState('history');
   const [multiplier, setMultiplier] = useState(1);
   const [now, setNow] = useState(Date.now());
+  const [historyPage, setHistoryPage] = useState(1);
+  const [betPopupData, setBetPopupData] = useState<{type: string | number, colorType: string} | null>(null);
+  const [betAmountIndex, setBetAmountIndex] = useState(0);
+  const [betQuantity, setBetQuantity] = useState(1);
+  const betAmounts = [1, 10, 100, 1000];
+  const [winPopup, setWinPopup] = useState<any>(null);
+  const shownWinIds = useRef<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = () => {
     setRefreshing(true);
     setTimeout(() => {
@@ -111,21 +224,17 @@ export function Wingo() {
     setHistoryPage(1);
   }, [activeTab]);
 
-  const { myBets, setMyBets } = useApp();
-
-  const [historyPage, setHistoryPage] = useState(1);
-  const [betPopupData, setBetPopupData] = useState<{type: string | number, colorType: string} | null>(null);
-  const [betAmountIndex, setBetAmountIndex] = useState(0);
-  const [betQuantity, setBetQuantity] = useState(1);
-  const betAmounts = [1, 10, 100, 1000];
-
-  const [winPopup, setWinPopup] = useState<any>(null);
-
   // Check for resolved bets when current period changes to show the popup
   useEffect(() => {
-    // If the latest resolved bet is a win and hasn't been shown in this instance
-    const newlyResolvedWon = myBets.find(bet => bet.status === 'Succeed' && bet.period === String(Number(currentPeriod)-1));
-    if (newlyResolvedWon && (!winPopup || winPopup.id !== newlyResolvedWon.id)) {
+    // If the latest resolved bet is a win and hasn't been shown in this session
+    const newlyResolvedWon = myBets.find(bet => 
+      bet.status === 'Succeed' && 
+      bet.period === String(Number(currentPeriod)-1) &&
+      !shownWinIds.current.has(bet.id)
+    );
+    
+    if (newlyResolvedWon) {
+       shownWinIds.current.add(newlyResolvedWon.id);
        setWinPopup(newlyResolvedWon);
     }
   }, [myBets, currentPeriod]);
@@ -149,14 +258,23 @@ export function Wingo() {
       vipLevel: vipInfo.level
     }));
 
-    setMyBets(prev => [{
-       id: Date.now().toString(),
-       period: currentPeriod,
-       type,
-       amount: totalBet,
-       status: 'Pending',
-       timestamp: new Date().toLocaleString('en-US', { hour12: false }).replace(',', '')
-    }, ...prev]);
+    setMyBets(prev => {
+      const newBet = {
+        id: Date.now().toString(),
+        period: currentPeriod,
+        type,
+        value: type, // Admin uses 'value'
+        amount: totalBet,
+        status: 'Pending',
+        phone: user.phone,
+        timestamp: new Date().toLocaleString('en-US', { hour12: false }).replace(',', '')
+      };
+      
+      // Push to Admin Live Bets node
+      set(ref(rtdb, `wingo_live_user_bets/${newBet.id}`), newBet);
+      
+      return [newBet, ...prev];
+    });
 
     showToast(`Bet ₹${totalBet} on ${type}! (+${totalBet} EXP)`);
   };
@@ -179,7 +297,7 @@ export function Wingo() {
             />
           </div>
           <div className="flex gap-4 w-full px-4">
-            <button onClick={() => navigate('withdraw')} className="flex-1 py-2.5 rounded-[20px] bg-[#32D74B]/90 backdrop-blur-md saturate-150 font-bold text-white shadow-lg shadow-[#32D74B]/20 border border-[#32D74B]/30">Withdraw</button>
+            <button onClick={() => navigate('withdraw')} className="flex-1 py-2.5 rounded-[20px] bg-sky-500/90 backdrop-blur-md saturate-150 font-bold text-white shadow-lg shadow-sky-500/20 border border-sky-500/30">Withdraw</button>
             <button onClick={() => navigate('deposit')} className="flex-1 py-2.5 rounded-[20px] bg-blue-500/90 backdrop-blur-md saturate-150 font-bold text-white shadow-lg shadow-blue-500/20 border border-blue-400/30">Deposit</button>
           </div>
         </div>
@@ -233,17 +351,7 @@ export function Wingo() {
             </div>
             <div className="text-right">
               <div className="text-xs text-gray-300 font-semibold mb-1">Time remaining</div>
-              <div className="flex items-center gap-1 mb-2 justify-end">
-                 <div className="w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono text-[#32D74B]">0</div>
-                 <div className="w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono text-[#32D74B]">{Math.floor(timeLeft / 60)}</div>
-                 <div className="font-bold pb-1 text-[#32D74B]">:</div>
-                 <div className={`w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono ${timeLeft <= 5 ? 'text-red-500' : 'text-[#32D74B]'}`}>
-                    {Math.floor((timeLeft % 60) / 10)}
-                 </div>
-                 <div className={`w-8 h-9 bg-card-base border border-white/10 rounded-lg flex items-center justify-center text-2xl font-bold font-mono ${timeLeft <= 5 ? 'text-red-500' : 'text-[#32D74B]'}`}>
-                    {timeLeft % 10}
-                 </div>
-              </div>
+              <CountdownDisplay duration={currentDuration} now={now} />
               <div className="text-xs font-bold text-gray-300 font-mono">{currentPeriod}</div>
             </div>
           </div>
@@ -254,39 +362,29 @@ export function Wingo() {
         {/* Placing Bets Area */}
         <div className="bg-card-base rounded-2xl p-4 shadow-lg mb-4 border border-white/5 relative">
           
-          {/* Large numbers overlay when time <= 5 */}
-          {timeLeft <= 5 && (
-            <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm rounded-2xl flex items-center justify-center gap-4 animate-fade-in">
-               <div className="w-24 h-36 bg-card-base border-2 border-white/20 rounded-xl flex items-center justify-center text-[100px] font-bold text-[#F9D423] shadow-2xl">
-                 {Math.floor((timeLeft % 60) / 10)}
-               </div>
-               <div className="w-24 h-36 bg-card-base border-2 border-white/20 rounded-xl flex items-center justify-center text-[100px] font-bold text-[#F9D423] shadow-2xl">
-                 {timeLeft % 10}
-               </div>
-            </div>
-          )}
+          <TimerOverlay timeLeft={timeLeft} />
 
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <button onClick={() => setBetPopupData({ type: 'Green', colorType: 'green' })} className="py-2.5 rounded-[16px] bg-[#16A34A]/90 backdrop-blur-xl saturate-200 font-bold text-white shadow-lg border border-[#16A34A]/30 active:scale-95 transition-transform text-sm">Green</button>
+            <button onClick={() => setBetPopupData({ type: 'Green', colorType: 'green' })} className="py-2.5 rounded-[16px] bg-emerald-600/90 backdrop-blur-xl saturate-200 font-bold text-white shadow-lg border border-emerald-500/30 active:scale-95 transition-transform text-sm">Green</button>
             <button onClick={() => setBetPopupData({ type: 'Violet', colorType: 'purple' })} className="py-2.5 rounded-[16px] bg-[#9333EA]/90 backdrop-blur-xl saturate-200 font-bold text-white shadow-lg border border-[#9333EA]/30 active:scale-95 transition-transform text-sm">Violet</button>
             <button onClick={() => setBetPopupData({ type: 'Red', colorType: 'red' })} className="py-2.5 rounded-[16px] bg-[#DC2626]/90 backdrop-blur-xl saturate-200 font-bold text-white shadow-lg border border-[#DC2626]/30 active:scale-95 transition-transform text-sm">Red</button>
           </div>
 
-          <div className="bg-black/20 mix-blend-overlay border border-white/5 shadow-inner rounded-2xl p-4 mb-4 grid grid-cols-5 gap-y-4 justify-items-center">
+          <div className="bg-black/40 border border-white/10 shadow-[inset_0_4px_12px_rgba(0,0,0,0.5)] rounded-2xl p-4 mb-4 grid grid-cols-5 gap-y-4 justify-items-center">
              {balls.map((ball) => (
-                <button key={ball.num} onClick={() => setBetPopupData({ type: ball.num, colorType: ball.color })} className="relative active:scale-90 transition-transform">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-[inset_0_-4px_8px_rgba(0,0,0,0.4),0_4px_10px_rgba(0,0,0,0.5)] border border-white/10`}
+                <button key={ball.num} onClick={() => setBetPopupData({ type: ball.num, colorType: ball.color })} className="relative active:scale-90 transition-transform hover:brightness-110">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-[inset_0_-4px_8px_rgba(0,0,0,0.4),0_4px_12px_rgba(0,0,0,0.6)] border border-white/20`}
                     style={{
                       background: 
-                        ball.color === 'red' ? 'radial-gradient(circle at 30% 30%, #FCA5A5, #DC2626, #991B1B)' :
-                        ball.color === 'green' ? 'radial-gradient(circle at 30% 30%, #86EFAC, #16A34A, #14532D)' :
+                        ball.color === 'red' ? 'radial-gradient(circle at 35% 35%, #FCA5A5, #DC2626, #7F1D1D)' :
+                        ball.color === 'green' ? 'radial-gradient(circle at 35% 35%, #6EE7B7, #10B981, #064E3B)' :
                         ball.color === 'split-red-purple' ? 'linear-gradient(135deg, #DC2626 50%, #9333EA 50%)' :
-                        'linear-gradient(135deg, #16A34A 50%, #9333EA 50%)' // split-green-purple
+                        'linear-gradient(135deg, #10B981 50%, #9333EA 50%)' // split-green-purple
                     }}
                   >
-                    <span className={ball.color.includes('split') ? "text-white drop-shadow-md z-10" : "text-white drop-shadow-md"}>{ball.num}</span>
+                    <span className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)] z-10">{ball.num}</span>
                     {/* Glossy overlay */}
-                    <div className="absolute top-1 left-3 w-4 h-2 bg-white/40 rounded-full rotate-[-30deg]"></div>
+                    <div className="absolute top-1 left-2.5 w-4 h-2.5 bg-white/40 rounded-full rotate-[-35deg] blur-[0.5px]"></div>
                   </div>
                 </button>
              ))}
@@ -298,7 +396,7 @@ export function Wingo() {
               <button 
                 key={x} 
                 onClick={() => setMultiplier(x)}
-                className={`px-3 py-1.5 rounded text-xs font-bold whitespace-nowrap ${multiplier === x ? 'bg-emerald-500 text-white' : 'bg-card-base border border-white/10 text-gray-300'}`}
+                className={`px-3 py-1.5 rounded text-xs font-bold whitespace-nowrap ${multiplier === x ? 'bg-blue-500 text-white' : 'bg-card-base border border-white/10 text-gray-300'}`}
               >
                 X{x}
               </button>
@@ -307,7 +405,7 @@ export function Wingo() {
 
           <div className="flex gap-2">
             <button onClick={() => setBetPopupData({ type: 'Big', colorType: 'orange' })} className="flex-1 py-3.5 rounded-[20px] bg-gradient-to-b from-[#FCD34D]/90 to-[#D97706]/90 backdrop-blur-xl saturate-200 font-bold text-black shadow-lg shadow-amber-900/20 active:scale-95 transition-transform text-lg border border-amber-300/40">Big</button>
-            <button onClick={() => setBetPopupData({ type: 'Small', colorType: 'blue' })} className="flex-1 py-3.5 rounded-[20px] bg-gradient-to-b from-[#60A5FA]/90 to-[#2563EB]/90 backdrop-blur-xl saturate-200 font-bold text-white shadow-lg shadow-blue-900/20 active:scale-95 transition-transform text-lg border border-blue-400/40">Small</button>
+            <button onClick={() => setBetPopupData({ type: 'Small', colorType: 'green' })} className="flex-1 py-3.5 rounded-[20px] bg-gradient-to-b from-[#34D399]/90 to-[#059669]/90 backdrop-blur-xl saturate-200 font-bold text-white shadow-lg shadow-emerald-900/20 active:scale-95 transition-transform text-lg border border-emerald-400/40">Small</button>
           </div>
         </div>
 
@@ -329,52 +427,11 @@ export function Wingo() {
 
         {/* History Table */}
         {historyTab === 'history' && (
-          <div className="bg-gradient-card rounded-[24px] overflow-hidden shadow-2xl mb-4">
-            <div className="grid grid-cols-5 bg-white/10 backdrop-blur-md text-white text-[11px] uppercase tracking-wider font-bold py-3 px-2 text-center border-b border-white/10">
-              <div className="col-span-2 text-left pl-3">Period</div>
-              <div>Number</div>
-              <div>Size</div>
-              <div>Color</div>
-            </div>
-            <div className="flex flex-col">
-              {historyData.slice((historyPage - 1) * 10, historyPage * 10).map((row, i) => (
-                <div key={i} className={`grid grid-cols-5 py-3 px-2 text-center items-center text-sm ${i !== 9 ? 'border-b border-white/5' : ''}`}>
-                  <div className="col-span-2 text-left pl-3 font-mono text-gray-300 tracking-tight text-xs">{row.period}</div>
-                  <div className={`font-black text-xl drop-shadow-md ${row.num % 2 === 0 ? 'text-[#FF453A]' : 'text-[#32D74B]'}`}>{row.num}</div>
-                  <div className="text-gray-200 font-medium text-xs">{row.size}</div>
-                  <div className="flex justify-center">
-                    {row.color.includes('split') ? (
-                      <div className="flex gap-0.5">
-                        <span className={`w-3 h-3 rounded-full shadow-sm ${row.color.includes('red') ? 'bg-[#FF453A]' : 'bg-[#32D74B]'}`}></span>
-                        <span className="w-3 h-3 rounded-full bg-purple-500 shadow-sm"></span>
-                      </div>
-                    ) : (
-                      <span className={`w-3 h-3 rounded-full shadow-sm ${row.color === 'red' ? 'bg-[#FF453A]' : 'bg-[#32D74B]'}`}></span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-center gap-4 py-3 bg-black/20 border-t border-white/5">
-               <button 
-                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                  disabled={historyPage === 1}
-                  className="w-8 h-8 rounded bg-white/5 flex items-center justify-center disabled:opacity-30"
-               >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-               </button>
-               <span className="text-sm font-medium text-gray-400">{historyPage}/{Math.ceil(historyData.length / 10)}</span>
-               <button 
-                  onClick={() => setHistoryPage(p => Math.min(Math.ceil(historyData.length / 10), p + 1))}
-                  disabled={historyPage >= Math.ceil(historyData.length / 10)}
-                  className="w-8 h-8 rounded bg-[#FCD34D] text-black flex items-center justify-center disabled:opacity-50"
-               >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-               </button>
-            </div>
-          </div>
+          <HistoryTable 
+            historyData={historyData} 
+            historyPage={historyPage} 
+            setHistoryPage={setHistoryPage} 
+          />
         )}
 
         {historyTab === 'myhistory' && (
@@ -382,15 +439,15 @@ export function Wingo() {
             {myBets.map((bet, i) => (
               <div key={i} className="bg-card-base rounded-lg p-3 border border-white/5 flex flex-col gap-1 relative shadow">
                 <div className="flex items-center gap-2">
-                   <div className={`text-xs font-bold px-2 py-1 rounded shadow ${bet.type === 'Big' ? 'bg-[#D97706]' : bet.type === 'Small' ? 'bg-[#2563EB]' : typeof bet.type === 'number' ? 'bg-purple-500' : 'bg-emerald-500'} text-white`}>{bet.type}</div>
+                   <div className={`text-xs font-bold px-2 py-1 rounded shadow ${bet.type === 'Big' ? 'bg-[#D97706]' : bet.type === 'Small' ? 'bg-[#059669]' : typeof bet.type === 'number' ? 'bg-purple-500' : 'bg-emerald-500'} text-white`}>{bet.type}</div>
                    <div className="text-gray-300 font-mono text-sm tracking-tight">{bet.period}</div>
                 </div>
                 <div className="text-[10px] text-gray-500 font-mono">{bet.timestamp}</div>
-                <div className={`absolute top-3 right-3 text-xs font-bold px-3 py-1 rounded shadow-sm border bg-black/20 ${bet.status === 'Succeed' ? 'border-[#32D74B] text-[#32D74B]' : bet.status === 'Failed' ? 'border-[#FF453A] text-[#FF453A]' : 'border-yellow-500 text-yellow-500'}`}>
+                <div className={`absolute top-3 right-3 text-xs font-bold px-3 py-1 rounded shadow-sm border bg-black/20 ${bet.status === 'Succeed' ? 'border-blue-500 text-blue-500' : bet.status === 'Failed' ? 'border-[#FF453A] text-[#FF453A]' : 'border-yellow-500 text-yellow-500'}`}>
                   {bet.status}
                 </div>
                 {bet.status !== 'Pending' && (
-                  <div className={`absolute bottom-3 right-3 font-bold text-sm ${bet.payout > 0 ? 'text-[#32D74B]' : 'text-[#FF453A]'}`}>
+                  <div className={`absolute bottom-3 right-3 font-bold text-sm ${bet.payout > 0 ? 'text-blue-500' : 'text-[#FF453A]'}`}>
                      {bet.payout > 0 ? `+₹${bet.payout.toFixed(2)}` : `-₹${Math.abs(bet.payout).toFixed(2)}`}
                   </div>
                 )}
@@ -412,12 +469,12 @@ export function Wingo() {
             {/* Colored Header area */}
             <div className={`pt-6 pb-12 px-4 text-center font-bold text-lg text-white relative 
               ${betPopupData.colorType === 'red' ? 'bg-[#DC2626]' : 
-                betPopupData.colorType === 'green' ? 'bg-[#16A34A]' : 
+                betPopupData.colorType === 'green' ? 'bg-emerald-600' : 
                 betPopupData.colorType === 'purple' ? 'bg-[#9333EA]' : 
                 betPopupData.colorType === 'orange' ? 'bg-[#F97316]' : 
-                betPopupData.colorType === 'blue' ? 'bg-[#3B82F6]' : 
+                betPopupData.colorType === 'blue' ? 'bg-emerald-600' : 
                 betPopupData.colorType === 'random' ? 'bg-indigo-500' : 
-                'bg-gradient-to-r from-green-500 to-purple-500'
+                'bg-gradient-to-r from-emerald-500 to-purple-500'
               }`}
               style={{
                  /* Slanted bottom effect */
@@ -438,7 +495,7 @@ export function Wingo() {
                      <button 
                        key={amt} 
                        onClick={() => setBetAmountIndex(i)}
-                       className={`w-16 py-1.5 rounded font-bold transition-colors ${betAmountIndex === i ? (betPopupData.colorType === 'red' ? 'bg-[#DC2626] text-white' : betPopupData.colorType === 'green' ? 'bg-[#16A34A] text-white' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA] text-white' : 'bg-[#e29c36] text-white') : 'bg-[#3c3c3c] text-gray-300'}`}
+                       className={`w-16 py-1.5 rounded font-bold transition-colors ${betAmountIndex === i ? (betPopupData.colorType === 'red' ? 'bg-[#DC2626] text-white' : betPopupData.colorType === 'green' ? 'bg-emerald-600 text-white' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA] text-white' : 'bg-[#e29c36] text-white') : 'bg-[#3c3c3c] text-gray-300'}`}
                      >
                        {amt}
                      </button>
@@ -449,9 +506,9 @@ export function Wingo() {
               <div className="flex items-center justify-between mb-6">
                  <span className="text-gray-300 font-medium">Quantity</span>
                  <div className="flex items-center gap-3">
-                   <button onClick={() => setBetQuantity(q => Math.max(1, q - 1))} className={`w-8 h-8 flex items-center justify-center rounded font-bold text-xl ${betPopupData.colorType === 'red' ? 'bg-[#DC2626]' : betPopupData.colorType === 'green' ? 'bg-[#16A34A]' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA]' : 'bg-[#e29c36]'} text-white`}>-</button>
+                   <button onClick={() => setBetQuantity(q => Math.max(1, q - 1))} className={`w-8 h-8 flex items-center justify-center rounded font-bold text-xl ${betPopupData.colorType === 'red' ? 'bg-[#DC2626]' : betPopupData.colorType === 'green' ? 'bg-emerald-600' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA]' : 'bg-[#e29c36]'} text-white`}>-</button>
                    <input type="number" value={betQuantity} onChange={e => setBetQuantity(Math.max(1, parseInt(e.target.value)||1))} className="w-16 h-8 bg-black/40 text-center text-white font-bold outline-none border border-white/10 rounded" />
-                   <button onClick={() => setBetQuantity(q => q + 1)} className={`w-8 h-8 flex items-center justify-center rounded font-bold text-xl ${betPopupData.colorType === 'red' ? 'bg-[#DC2626]' : betPopupData.colorType === 'green' ? 'bg-[#16A34A]' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA]' : 'bg-[#e29c36]'} text-white`}>+</button>
+                   <button onClick={() => setBetQuantity(q => q + 1)} className={`w-8 h-8 flex items-center justify-center rounded font-bold text-xl ${betPopupData.colorType === 'red' ? 'bg-[#DC2626]' : betPopupData.colorType === 'green' ? 'bg-emerald-600' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA]' : 'bg-[#e29c36]'} text-white`}>+</button>
                  </div>
               </div>
 
@@ -460,7 +517,7 @@ export function Wingo() {
                    <button 
                      key={x} 
                      onClick={() => setBetQuantity(x)}
-                     className={`w-10 py-1.5 rounded text-[11px] font-bold transition-colors ${betQuantity === x ? (betPopupData.colorType === 'red' ? 'bg-[#DC2626] text-white' : betPopupData.colorType === 'green' ? 'bg-[#16A34A] text-white' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA] text-white' : 'bg-[#e29c36] text-white') : 'bg-[#3c3c3c] text-gray-300'}`}
+                     className={`w-10 py-1.5 rounded text-[11px] font-bold transition-colors ${betQuantity === x ? (betPopupData.colorType === 'red' ? 'bg-[#DC2626] text-white' : betPopupData.colorType === 'green' ? 'bg-emerald-600 text-white' : betPopupData.colorType === 'purple' ? 'bg-[#9333EA] text-white' : 'bg-[#e29c36] text-white') : 'bg-[#3c3c3c] text-gray-300'}`}
                    >
                      X{x}
                    </button>
@@ -482,10 +539,10 @@ export function Wingo() {
                  }} 
                  className={`w-2/3 py-3.5 text-white font-bold text-lg transition-transform active:scale-95
                   ${betPopupData.colorType === 'red' ? 'bg-[#DC2626]' : 
-                  betPopupData.colorType === 'green' ? 'bg-[#16A34A]' : 
+                  betPopupData.colorType === 'green' ? 'bg-[#10B981]' : 
                   betPopupData.colorType === 'purple' ? 'bg-[#9333EA]' : 
                   betPopupData.colorType === 'orange' ? 'bg-[#F97316]' : 
-                  betPopupData.colorType === 'blue' ? 'bg-[#3B82F6]' : 'bg-[#6366f1]'}
+                  betPopupData.colorType === 'blue' ? 'bg-[#10B981]' : 'bg-[#6366f1]'}
                  `}
                >
                  Total amount ₹{(betAmounts[betAmountIndex] * betQuantity).toFixed(2)}
@@ -511,13 +568,13 @@ export function Wingo() {
                <div className="flex items-center justify-center gap-2 mb-6">
                  <span className="text-sm font-semibold text-white/80">Lottery results</span>
                  <div className="flex gap-1.5 ml-1">
-                   <div className={`px-2.5 py-0.5 rounded text-xs font-bold shadow-md text-white ${winPopup.result.color.includes('green') ? 'bg-[#32D74B]' : 'bg-[#FF453A]'}`}>
-                     {winPopup.result.color === 'green' ? 'Green' : winPopup.result.color === 'red' ? 'Red' : 'Mixed'}
+                   <div className={`px-2.5 py-0.5 rounded text-xs font-bold shadow-md text-white ${winPopup.result.color.includes('green') ? 'bg-emerald-500' : 'bg-[#FF453A]'}`}>
+                     {winPopup.result.color.includes('green') ? 'Green' : winPopup.result.color === 'red' ? 'Red' : 'Mixed'}
                    </div>
-                   <div className="w-6 h-6 rounded flex items-center justify-center font-black text-xs bg-white text-blue-600 shadow-md">
+                   <div className="w-6 h-6 rounded flex items-center justify-center font-black text-xs bg-white text-emerald-600 shadow-md">
                      {winPopup.result.num}
                    </div>
-                   <div className={`px-2.5 py-0.5 rounded text-xs font-bold shadow-md text-white ${winPopup.result.size === 'Big' ? 'bg-[#D97706]' : 'bg-[#2563EB]'}`}>
+                   <div className={`px-2.5 py-0.5 rounded text-xs font-bold shadow-md text-white ${winPopup.result.size === 'Big' ? 'bg-[#D97706]' : 'bg-emerald-600'}`}>
                      {winPopup.result.size}
                    </div>
                  </div>
@@ -531,7 +588,7 @@ export function Wingo() {
             </div>
             
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2">
-               <input type="checkbox" id="autoclose" className="w-4 h-4 rounded border-white/50 bg-white/10 focus:ring-0 checked:bg-white checked:border-white transition-all appearance-none flex items-center justify-center relative after:content-['✓'] after:text-blue-500 after:absolute after:hidden checked:after:block after:font-bold after:text-xs" />
+               <input type="checkbox" id="autoclose" className="w-4 h-4 rounded border-white/50 bg-white/10 focus:ring-0 checked:bg-white checked:border-white transition-all appearance-none flex items-center justify-center relative after:content-['✓'] after:text-emerald-500 after:absolute after:hidden checked:after:block after:font-bold after:text-xs" />
                <label htmlFor="autoclose" className="text-white text-xs font-medium opacity-80 cursor-pointer select-none">3 seconds auto close</label>
             </div>
           </div>

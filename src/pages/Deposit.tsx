@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../store';
 import { Header } from '../components/Header';
-import { RefreshCw, QrCode, CreditCard, HelpCircle } from 'lucide-react';
+import { RefreshCw, QrCode, CreditCard, HelpCircle, History } from 'lucide-react';
 import { formatCurrency } from '../utils';
 
-export function Deposit() {
-  const { user, setUser, navigate, addTransaction, setIsLoading, showToast, addBonusRecord } = useApp();
+export function Deposit({ hideHeader }: { hideHeader?: boolean }) {
+  const { user, setUser, navigate, addTransaction, setIsLoading, showToast, addBonusRecord, setPendingDepositAmount, sysConfig } = useApp();
   const [activeChannel, setActiveChannel] = useState('UPI-QR');
   const [amount, setAmount] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
@@ -20,80 +20,57 @@ export function Deposit() {
     }, 1000);
   };
 
-  const amounts = [100, 200, 300, 500, 1000, 1500, 2000, 3000, 5000];
+  const amounts = sysConfig.depositAmounts.split(',').map(Number);
+  const bonusesArr = sysConfig.depositBonuses.split(',').map(Number);
 
   const getBonus = (amt: number) => {
-    const bonuses: Record<number, number> = {
-      100: 6,
-      200: 18,
-      300: 30,
-      500: 55,
-      1000: 120,
-      1500: 195,
-      2000: 280,
-      3000: 450,
-      5000: 800
-    };
-    if (bonuses[amt]) return bonuses[amt];
-    return Math.floor(amt * 0.1); 
+    const idx = amounts.indexOf(amt);
+    if (idx !== -1) {
+      const percentage = bonusesArr[idx] || 0;
+      return Math.floor(amt * (percentage / 100));
+    }
+    return 0;
   };
 
   const handleDeposit = () => {
     if (!amount || isNaN(Number(amount))) return;
     
-    const depositAmt = Number(amount);
-    const bonusAmt = getBonus(depositAmt);
-    const totalAmt = depositAmt + bonusAmt;
-
-    // Simulate creating a transaction
-    addTransaction({
-      id: `RC${Date.now()}`,
-      type: activeChannel,
-      status: 'Complete',
-      amount: depositAmt,
-      time: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      orderNumber: `RC${Date.now()}81064297c`
-    });
-
-    // Update user balance
-    setUser({
-      ...user,
-      totalBalance: user.totalBalance + totalAmt,
-      totalDeposit: (user.totalDeposit || 0) + depositAmt
-    });
-    
-    if (bonusAmt > 0) {
-      addBonusRecord('Deposit Bonus', bonusAmt);
-    }
-    
-    showToast(`Deposited ${formatCurrency(depositAmt)} + ${formatCurrency(bonusAmt)} bonus`);
-    setTimeout(() => navigate('wallet'), 1000);
+    // Set pending amount and redirect to payment page
+    setPendingDepositAmount(Number(amount));
+    navigate('depositPayment');
   };
 
   return (
     <div className="min-h-screen bg-bg-base relative pb-32">
-      <Header 
-        title="Deposit" 
-        rightContent={<button onClick={() => navigate('depositHistory')} className="text-gray-300 text-sm font-medium hover:text-white">Deposit history</button>}
-      />
+      {!hideHeader && (
+        <Header 
+          title="Deposit" 
+          withSwitcher={true}
+          rightContent={
+            <button onClick={() => navigate('depositHistory')} className="text-gray-300 hover:text-white transition-colors">
+              <History size={20} />
+            </button>
+          }
+        />
+      )}
 
       <div className="px-4 mt-4">
         {/* Balance Card */}
-        <div className="bg-gradient-to-tr from-cyan-400 to-green-300 rounded-3xl p-5 mb-4 shadow-lg text-black relative overflow-hidden">
-          <div className="flex items-center gap-1 font-medium mb-1 relative z-10">
+        <div className="bg-gradient-blue rounded-3xl p-5 mb-4 shadow-lg text-white relative overflow-hidden">
+          <div className="flex items-center gap-1 font-medium mb-1 relative z-10 text-white/80">
             <span>👍</span> Balance
           </div>
           <div className="flex items-center gap-2 mb-4 relative z-10">
-            <span className="text-3xl font-bold">{formatCurrency(user.totalBalance)}</span>
+            <span className="text-3xl font-black tracking-tight">{formatCurrency(user.totalBalance)}</span>
             <RefreshCw 
               size={16} 
-              className={`text-black/60 cursor-pointer ${refreshing ? 'animate-spin-once' : ''}`} 
+              className={`text-white/60 cursor-pointer ${refreshing ? 'animate-spin-once' : ''}`} 
               onClick={handleRefresh}
             />
           </div>
           <div className="flex justify-between items-end relative z-10">
-            <CreditCard size={28} className="text-black/40" />
-            <span className="font-mono text-black/60 tracking-widest text-lg">**** ****</span>
+            <CreditCard size={28} className="text-white/20" />
+            <span className="font-mono text-white/40 tracking-widest text-lg">**** ****</span>
           </div>
         </div>
 
@@ -185,7 +162,7 @@ export function Deposit() {
                  setAmount(val);
                }}
                className="flex-1 bg-transparent border-none outline-none text-white font-medium w-full min-w-0"
-               style={{ caretColor: '#32D74B' }}
+               style={{ caretColor: '#2583F7' }}
              />
              {amount && (
                <button onClick={() => setAmount('')} className="w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center shrink-0 ml-2">

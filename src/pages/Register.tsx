@@ -10,14 +10,12 @@ export function Register() {
   const [agreed, setAgreed] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!phone || !password || !agreed) return;
     
     setLoggingIn(true);
-    setTimeout(() => {
-      registerUser({ phone }); 
-      setLoggingIn(false);
-    }, 400);
+    await registerUser({ phone, loginPassword: password }); 
+    setLoggingIn(false);
   };
 
   return (

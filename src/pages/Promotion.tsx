@@ -7,17 +7,17 @@ export function Promotion() {
     <div className="pb-24 min-h-screen bg-bg-base relative">
 
       {/* Top Banner half */}
-      <div className="bg-gradient-gold pt-6 pb-20 px-4 rounded-b-[40px] relative">
-         <div className="absolute top-2 right-4 text-black text-xl opacity-80">📜</div>
-         <h1 className="text-xl font-medium text-black text-center mb-8">Agency</h1>
+      <div className="bg-gradient-blue pt-6 pb-20 px-4 rounded-b-[40px] relative">
+         <div className="absolute top-2 right-4 text-white text-xl opacity-80">📜</div>
+         <h1 className="text-xl font-bold text-white text-center mb-8 uppercase tracking-widest">Agency</h1>
 
-         <div className="text-center font-bold text-4xl text-black mb-2">0</div>
+         <div className="text-center font-black text-4xl text-white mb-2 drop-shadow-md">0</div>
          <div className="flex justify-center mb-2">
-           <div className="bg-black/80 rounded-full px-4 py-1 text-primary text-sm shadow-md">
+           <div className="bg-white/20 backdrop-blur-md rounded-full px-4 py-1 text-white text-sm shadow-md border border-white/10">
              Yesterday's total commission
            </div>
          </div>
-         <div className="text-center text-black/70 text-[10px] uppercase font-semibold">
+         <div className="text-center text-white/70 text-[10px] uppercase font-bold tracking-wider">
            Upgrade the level to increase commission income
          </div>
       </div>
@@ -80,7 +80,7 @@ export function Promotion() {
 
       {/* Actions */}
       <div className="mx-4 mb-4">
-        <button className="w-full bg-gradient-gold text-black font-extrabold text-lg py-3 rounded-xl shadow-lg hover:scale-[1.01] transition-transform">
+        <button className="w-full bg-gradient-to-r from-[#2583F7] to-[#145DD8] hover:from-[#145DD8] hover:to-[#1149A6] text-white font-black text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(37,131,247,0.4)] active:scale-95 transition-all uppercase tracking-[2px] border border-white/20">
           Download QR Code
         </button>
       </div>

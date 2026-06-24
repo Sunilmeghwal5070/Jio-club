@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useApp, getVipDetails } from '../store';
 import { Header } from '../components/Header';
-import { RefreshCw, CreditCard, PlusSquare } from 'lucide-react';
+import { RefreshCw, CreditCard, PlusSquare, History } from 'lucide-react';
 import { formatCurrency } from '../utils';
 
-export function Withdraw() {
+export function Withdraw({ hideHeader }: { hideHeader?: boolean }) {
   const { user, setUser, navigate, selectedBankName, selectedUpiCode, addTransaction, setIsLoading, showToast, withdrawInstructions } = useApp();
   const [activeTab, setActiveTab] = useState('BANK CARD');
   const [amount, setAmount] = useState('');
@@ -70,28 +70,35 @@ export function Withdraw() {
 
   return (
     <div className="min-h-screen bg-bg-base relative pb-6">
-      <Header 
-        title="Withdraw" 
-        rightContent={<button onClick={() => navigate('withdrawHistory')} className="text-gray-300 text-sm font-medium hover:text-white">Withdrawal history</button>}
-      />
+      {!hideHeader && (
+        <Header 
+          title="Withdraw" 
+          withSwitcher={true}
+          rightContent={
+            <button onClick={() => navigate('withdrawHistory')} className="text-gray-300 hover:text-white transition-colors">
+              <History size={20} />
+            </button>
+          }
+        />
+      )}
 
       <div className="px-4 mt-4">
         {/* Balance Card */}
-        <div className="bg-gradient-to-tr from-cyan-400 to-green-300 rounded-3xl p-5 mb-4 shadow-lg text-black relative overflow-hidden">
-          <div className="flex items-center gap-1 font-medium mb-1 relative z-10">
+        <div className="bg-gradient-blue rounded-3xl p-5 mb-4 shadow-lg text-white relative overflow-hidden">
+          <div className="flex items-center gap-1 font-medium mb-1 relative z-10 text-white/80">
             <span>👍</span> Available balance
           </div>
           <div className="flex items-center gap-2 mb-4 relative z-10">
-            <span className="text-3xl font-bold">{formatCurrency(user.totalBalance)}</span>
+            <span className="text-3xl font-black tracking-tight">{formatCurrency(user.totalBalance)}</span>
             <RefreshCw 
               size={16} 
-              className={`text-black/60 cursor-pointer ${refreshing ? 'animate-spin-once' : ''}`} 
+              className={`text-white/60 cursor-pointer ${refreshing ? 'animate-spin-once' : ''}`} 
               onClick={handleRefresh}
             />
           </div>
           <div className="flex justify-between items-end relative z-10">
-            <CreditCard size={28} className="text-black/40" />
-            <span className="font-mono text-black/60 tracking-widest text-lg">**** ****</span>
+            <CreditCard size={28} className="text-white/20" />
+            <span className="font-mono text-white/40 tracking-widest text-lg">**** ****</span>
           </div>
         </div>
 
@@ -177,14 +184,14 @@ export function Withdraw() {
         </div>
 
         <div className="flex justify-between items-center px-1 mb-2 text-sm">
-          <span className="text-gray-400">Withdrawable balance <span className="text-[#32D74B] font-bold">₹{user.totalBalance.toFixed(2)}</span></span>
+          <span className="text-gray-400">Withdrawable balance <span className="text-primary font-bold">₹{user.totalBalance.toFixed(2)}</span></span>
           <button 
              onClick={() => {
                const maxAvail = user.totalBalance - withdrawalFee;
                const finalAmount = Math.min(maxAvail, vipInfo.amountLimit);
                setAmount(finalAmount > 0 ? finalAmount.toString() : '0');
              }}
-             className="border border-[#32D74B] text-[#32D74B] px-4 py-0.5 rounded-full font-bold text-xs hover:bg-[#32D74B]/10"
+             className="border border-primary text-primary px-4 py-0.5 rounded-full font-bold text-xs hover:bg-primary/10"
           >
             All
           </button>

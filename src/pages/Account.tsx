@@ -58,9 +58,8 @@ export function Account() {
                       value={newNickname} 
                       onChange={e => setNewNickname(e.target.value)} 
                       className="bg-black/20 text-white px-2 py-0.5 rounded outline-none border border-white/20 w-32 text-sm focus:border-primary"
-                      autoFocus
                     />
-                    <Check size={16} className="text-[#32D74B] cursor-pointer" onClick={handleSaveNickname} />
+                    <Check size={16} className="text-blue-500 cursor-pointer" onClick={handleSaveNickname} />
                     <X size={16} className="text-[#FF453A] cursor-pointer" onClick={() => setIsEditingNickname(false)} />
                  </div>
               ) : (
@@ -90,33 +89,45 @@ export function Account() {
       </div>
 
       {/* Main Balance Card */}
-      <div className="mx-4 mb-4 bg-gradient-card rounded-2xl p-4 shadow-lg">
-        <div className="text-sm text-gray-400 mb-1">Total balance</div>
-        <div className="flex items-center gap-2 mb-6">
-          <div className="text-2xl font-bold">{formatCurrency(user.totalBalance)}</div>
+      <div className="mx-4 mb-4 bg-gradient-to-r from-[#2583F7] via-[#145DD8] to-[#6366f1] rounded-2xl p-6 shadow-xl relative overflow-hidden border border-white/10">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-3xl -mr-16 -mt-16" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-400/30 rounded-full blur-2xl -ml-12 -mb-12" />
+
+        <div className="text-sm text-blue-100 mb-1 font-medium relative z-10">Total balance</div>
+        <div className="flex items-center gap-2 mb-8 relative z-10">
+          <div className="text-3xl font-black text-white tracking-tight drop-shadow-sm">{formatCurrency(user.totalBalance)}</div>
           <RefreshCw 
-            size={14} 
-            className={`text-gray-400 cursor-pointer ${refreshing ? 'animate-spin-once text-primary' : 'hover:text-white'}`} 
+            size={16} 
+            className={`text-blue-200 cursor-pointer ${refreshing ? 'animate-spin-once text-white' : 'hover:text-white'}`} 
             onClick={handleRefresh}
           />
         </div>
         
-        <div className="flex justify-between items-center px-2">
-          <button onClick={() => navigate('wallet')} className="flex flex-col items-center group">
-            <Archive size={24} className="text-gray-200 mb-1" strokeWidth={1.5} />
-            <span className="text-xs text-gray-300 group-hover:text-primary transition-colors">Wallet</span>
+        <div className="grid grid-cols-4 gap-2 relative z-10">
+          <button onClick={() => navigate('wallet')} className="flex flex-col items-center group active:scale-90 transition-transform">
+            <div className="w-12 h-12 bg-gradient-to-b from-sky-400 to-blue-600 rounded-2xl flex items-center justify-center mb-1 shadow-[0_4px_12px_rgba(37,99,235,0.4)] border border-white/20">
+              <Archive size={24} className="text-white" strokeWidth={1.5} />
+            </div>
+            <span className="text-[10px] font-bold text-blue-50 uppercase tracking-widest">Wallet</span>
           </button>
-          <button onClick={() => navigate('deposit')} className="flex flex-col items-center group">
-             <ArrowDownCircle size={24} className="text-blue-500 mb-1" strokeWidth={1.5} />
-             <span className="text-xs text-gray-300 group-hover:text-primary transition-colors">Deposit</span>
+          <button onClick={() => navigate('deposit')} className="flex flex-col items-center group active:scale-90 transition-transform">
+            <div className="w-12 h-12 bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center mb-1 shadow-[0_4px_12px_rgba(16,185,129,0.4)] border border-white/20">
+              <ArrowDownCircle size={24} className="text-white" strokeWidth={1.5} />
+            </div>
+            <span className="text-[10px] font-bold text-white uppercase tracking-widest">Deposit</span>
           </button>
-          <button onClick={() => navigate('withdraw')} className="flex flex-col items-center group">
-             <ArrowUpCircle size={24} className="text-[#32D74B] mb-1" strokeWidth={1.5} />
-             <span className="text-xs text-gray-300 group-hover:text-primary transition-colors">Withdraw</span>
+          <button onClick={() => navigate('withdraw')} className="flex flex-col items-center group active:scale-90 transition-transform">
+            <div className="w-12 h-12 bg-gradient-to-b from-amber-400 to-orange-600 rounded-2xl flex items-center justify-center mb-1 shadow-[0_4px_12px_rgba(245,158,11,0.4)] border border-white/20">
+              <ArrowUpCircle size={24} className="text-white" strokeWidth={1.5} />
+            </div>
+            <span className="text-[10px] font-bold text-blue-50 uppercase tracking-widest">Withdraw</span>
           </button>
-          <button onClick={() => navigate('vip')} className="flex flex-col items-center group">
-             <Crown size={24} className="text-[#F9D423] mb-1" strokeWidth={1.5} />
-             <span className="text-xs text-gray-300 group-hover:text-primary transition-colors">VIP</span>
+          <button onClick={() => navigate('vip')} className="flex flex-col items-center group active:scale-90 transition-transform">
+            <div className="w-12 h-12 bg-gradient-to-b from-purple-400 to-indigo-600 rounded-2xl flex items-center justify-center mb-1 shadow-[0_4px_12px_rgba(139,92,246,0.4)] border border-white/20">
+              <Crown size={24} className="text-white" strokeWidth={1.5} />
+            </div>
+            <span className="text-[10px] font-bold text-blue-50 uppercase tracking-widest">VIP</span>
           </button>
         </div>
       </div>
@@ -127,7 +138,7 @@ export function Account() {
           { title: 'Game History', desc: 'My game history', icon: <Gamepad2 size={24} className="text-red-400" strokeWidth={1.5} />, bg: 'bg-white/5', action: () => navigate('gameHistory') },
           { title: 'Transaction', desc: 'My transaction history', icon: <FileText size={24} className="text-sky-400" strokeWidth={1.5} />, bg: 'bg-white/5', action: () => navigate('transaction') },
           { title: 'Deposit', desc: 'My deposit history', icon: <ArrowDownCircle size={24} className="text-blue-500" strokeWidth={1.5} />, bg: 'bg-white/5', action: () => navigate('depositHistory') },
-          { title: 'Withdraw', desc: 'My withdraw history', icon: <ArrowUpCircle size={24} className="text-[#32D74B]" strokeWidth={1.5} />, bg: 'bg-white/5', action: () => navigate('withdrawHistory') },
+          { title: 'Withdraw', desc: 'My withdraw history', icon: <ArrowUpCircle size={24} className="text-blue-500" strokeWidth={1.5} />, bg: 'bg-white/5', action: () => navigate('withdrawHistory') },
         ].map((item, i) => (
           <div key={i} onClick={item.action} className="bg-card-base rounded-xl p-3 flex gap-3 shadow-sm cursor-pointer hover:bg-gray-800 transition-colors">
             <div className={`w-10 h-10 rounded-lg ${item.bg} flex items-center justify-center shrink-0`}>
@@ -165,13 +176,13 @@ export function Account() {
       {/* Service Center */}
       <div className="mx-4 mb-6 bg-card-base rounded-2xl p-4 shadow-sm">
         <h3 className="text-sm text-gray-300 mb-4">Service center</h3>
-        <div className="grid grid-cols-3 gap-y-6">
+         <div className="grid grid-cols-3 gap-y-6">
           {[
-            { icon: <Settings size={24} className="text-yellow-500" />, label: 'Settings', action: () => navigate('settings') },
-            { icon: <MessageSquare size={24} className="text-yellow-700" />, label: 'Feedback' },
-            { icon: <Megaphone size={24} className="text-yellow-500" />, label: 'Announcement' },
-            { icon: <BookOpen size={24} className="text-yellow-600" />, label: "Beginner's Guide" },
-            { icon: <Info size={24} className="text-yellow-600" />, label: 'About us' },
+            { icon: <Settings size={24} className="text-blue-500" />, label: 'Settings', action: () => navigate('settings') },
+            { icon: <MessageSquare size={24} className="text-blue-400" />, label: 'Feedback', action: () => navigate('feedback') },
+            { icon: <Megaphone size={24} className="text-orange-400" />, label: 'Announcement', action: () => navigate('announcement') },
+            { icon: <BookOpen size={24} className="text-indigo-400" />, label: "Beginner's Guide", action: () => navigate('beginnerGuide') },
+            { icon: <Info size={24} className="text-purple-400" />, label: 'About us', action: () => navigate('aboutUs') },
           ].map((item, i) => (
             <div key={i} onClick={item.action} className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity text-center">
                <div className="mb-2">{item.icon}</div>

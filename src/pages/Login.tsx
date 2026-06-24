@@ -19,22 +19,20 @@ export function Login() {
     if (savedPass) setPassword(savedPass);
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!phone || !password) return;
     setLoggingIn(true);
     
-    setTimeout(() => {
-      if (rememberMe) {
-        localStorage.setItem('remember_phone', phone);
-        localStorage.setItem('remember_pass', password);
-      } else {
-        localStorage.removeItem('remember_phone');
-        localStorage.removeItem('remember_pass');
-      }
-      
-      login({ phone }); // Save phone to mock backend/state
-      setLoggingIn(false);
-    }, 400); // 400ms delay to allow click animation and feel like a real request
+    const success = await login(phone, password);
+    setLoggingIn(false);
+
+    if (success && rememberMe) {
+      localStorage.setItem('remember_phone', phone);
+      localStorage.setItem('remember_pass', password);
+    } else if (success) {
+      localStorage.removeItem('remember_phone');
+      localStorage.removeItem('remember_pass');
+    }
   };
 
   return (

@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import { rtdb } from './firebase';
+import { ref, onValue, set, update, get, child, onDisconnect, serverTimestamp } from 'firebase/database';
 
 export type AppRoute = 
   | 'home' | 'promotion' | 'activity' | 'wallet' | 'account' 
   | 'depositHistory' | 'withdrawHistory' | 'gameHistory' | 'transaction' | 'notification' | 'vip' | 'settings' | 'attendance' | 'gift'
   | 'login' | 'register' | 'deposit' | 'withdraw' | 'addBank' | 'addUpi' | 'chooseBank' | 'changeAvatar' | 'changePassword' | 'bonusHistory'
-  | 'attendanceHistory' | 'attendanceRules';
+  | 'attendanceHistory' | 'attendanceRules' | 'depositPayment' | 'wingo'
+  | 'feedback' | 'announcement' | 'beginnerGuide' | 'aboutUs';
 
 export const getVipDetails = (exp: number) => {
   if (exp >= 6000) return { level: 4, dailyLimit: Infinity, amountLimit: Infinity, nextExp: 0, title: 'VIP4' };
@@ -27,17 +30,35 @@ interface User {
   lotteryWallet: number;
   safeBalance: number;
   lastLogin: string;
-  phone?: string;
+  phone: string;
   email?: string;
   loginPassword?: string;
   todayWithdrawalCount: number;
   maxWithdrawalAllowed: number;
   attendanceDays: number;
   lastAttendanceDate: string;
+  blocked?: boolean;
+  wagerReq?: number;
+  withdrawalDetails?: {
+    savedBank?: { bName: string, name: string, acc: string, ifsc: string };
+    savedUpi?: { name: string, phone: string, upi: string };
+  };
 }
 
 interface Transaction {
   id: string; type: string; status: 'Complete' | 'Failed'; amount: number; time: string; orderNumber: string;
+}
+
+interface SystemConfig {
+  upiId: string;
+  merchantName: string;
+  qrUrl: string;
+  minDailyBonus: number;
+  maxDailyBonus: number;
+  minRegBonus: number;
+  maxRegBonus: number;
+  depositAmounts: string;
+  depositBonuses: string;
 }
 
 interface AppContextType {
@@ -49,8 +70,8 @@ interface AppContextType {
   transactions: Transaction[];
   addTransaction: (tx: Transaction) => void;
   isAuthenticated: boolean;
-  login: (data?: Partial<User>) => void;
-  registerUser: (data?: Partial<User>) => void;
+  login: (phone: string, password?: string) => Promise<boolean>;
+  registerUser: (data: Partial<User>) => Promise<boolean>;
   logout: () => void;
   showFirstDeposit: boolean;
   setShowFirstDeposit: (val: boolean) => void;
@@ -62,6 +83,8 @@ interface AppContextType {
   setSelectedBankName: (val: string) => void;
   addingBankName: string;
   setAddingBankName: (val: string) => void;
+  pendingDepositAmount: number;
+  setPendingDepositAmount: (val: number) => void;
   banks: any[];
   addBank: (bank: any) => void;
   selectedUpiCode: string;
@@ -80,6 +103,15 @@ interface AppContextType {
   setMyBets: React.Dispatch<React.SetStateAction<any[]>>;
   bonusRecords: { id: string, name: string, amount: number, date: string }[];
   addBonusRecord: (name: string, amount: number) => void;
+  showSystemPopup: boolean;
+  setShowSystemPopup: (val: boolean) => void;
+  systemPopupMessage: string;
+  setSystemPopupMessage: (val: string) => void;
+  systemPopupTitle: string;
+  setSystemPopupTitle: (val: string) => void;
+  triggerSystemPopup: (title: string, message: string) => void;
+  sysConfig: SystemConfig;
+  gamesList: any[];
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -93,7 +125,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth', String(isAuthenticated));
   }, [isAuthenticated]);
 
-  // Default to login
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
     return localStorage.getItem('route') as AppRoute || (localStorage.getItem('auth') === 'true' ? 'home' : 'login');
   });
@@ -136,12 +167,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [captchaCallback, setCaptchaCallback] = useState<(() => void) | null>(null);
   const [selectedBankName, setSelectedBankName] = useState<string>('');
   const [addingBankName, setAddingBankName] = useState<string>('');
+  const [pendingDepositAmount, setPendingDepositAmount] = useState<number>(0);
   const [banks, setBanks] = useState<any[]>([]);
   const [selectedUpiCode, setSelectedUpiCode] = useState<string>('');
   const [upis, setUpis] = useState<any[]>([]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [sysConfig, setSysConfig] = useState<SystemConfig>({
+    upiId: "inrclub@upi",
+    merchantName: "JIO CLUB",
+    qrUrl: "",
+    minDailyBonus: 5,
+    maxDailyBonus: 25,
+    minRegBonus: 10,
+    maxRegBonus: 100,
+    depositAmounts: "30,100,200,300,500,1000,2000,3000,5000",
+    depositBonuses: "0,0,2,3,4,5,6,7,8"
+  });
+  const [gamesList, setGamesList] = useState<any[]>([]);
+  const [wingoOverrides, setWingoOverrides] = useState<Record<string, any>>({});
+
   const [unreadNotifications, setUnreadNotifications] = useState(() => {
     const saved = localStorage.getItem('unreadNotifications');
     if (saved !== null) {
@@ -149,11 +194,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     return 3;
   });
+
   const markNotificationsRead = useCallback(() => {
     setUnreadNotifications(0);
     localStorage.setItem('unreadNotifications', JSON.stringify(0));
   }, []);
-
 
   const [withdrawInstructions, setWithdrawInstructions] = useState<string[]>([
     'Need to bet ₹0.00 to be able to withdraw',
@@ -191,46 +236,323 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const registerUser = (data?: Partial<User>) => {
-    const randomBonus = Math.floor(Math.random() * (25 - 10 + 1)) + 10;
-    
-    // Add bonus record directly by setting state
-    const id = Math.random().toString(36).substr(2, 9);
-    const date = new Date().toLocaleString('en-US', { hour12: false }).replace(',', '');
-    setBonusRecords(prev => [{ id, name: 'Welcome Bonus', amount: randomBonus, date }, ...prev]);
+  const [user, setUser] = useState<User>(() => {
+    const saved = localStorage.getItem('userState');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      uid: '',
+      nickname: 'Member',
+      avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026024d',
+      vipLevel: 0,
+      totalDeposit: 0,
+      exp: 0,
+      totalBalance: 0,
+      thirdPartyBalance: 0,
+      arWallet: 0,
+      lotteryWallet: 0,
+      safeBalance: 0.00,
+      lastLogin: '',
+      phone: '',
+      todayWithdrawalCount: 0,
+      maxWithdrawalAllowed: 0,
+      attendanceDays: 0,
+      lastAttendanceDate: '',
+    };
+  });
 
-    setUser(prev => ({ 
-      ...prev, 
-      ...(data || {}), 
-      totalBalance: prev.totalBalance + randomBonus,
-      lotteryWallet: prev.lotteryWallet + randomBonus 
-    }));
-    setIsAuthenticated(true);
-    showToast(`Registered successfully! You got a ₹${randomBonus} welcome bonus!`, 3000);
-    navigate('home');
-    setTimeout(() => {
-      const hiddenDate = localStorage.getItem('hideFirstDepositBonus');
-      if (hiddenDate !== new Date().toDateString()) {
-        setShowFirstDeposit(true);
+  const [bonusRecords, setBonusRecords] = useState<{ id: string, name: string, amount: number, date: string }[]>(() => {
+    const saved = localStorage.getItem('bonusRecords');
+    if (saved) {
+      try { return JSON.parse(saved); } catch(e) {}
+    }
+    return [];
+  });
+
+  const [myBets, setMyBets] = useState<any[]>(() => {
+    const saved = localStorage.getItem('myBets');
+    if (saved) {
+      try { return JSON.parse(saved); } catch(e) {}
+    }
+    return [];
+  });
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const saved = localStorage.getItem('transactionsState');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return [];
+  });
+
+  // RTDB SYNC LOGIC
+  const updatingFromRtdb = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user.phone) return;
+
+    const userRef = ref(rtdb, `users/${user.phone}`);
+    const presenceRef = ref(rtdb, `users/${user.phone}/lastActive`);
+
+    // Handle online status
+    onDisconnect(presenceRef).set(serverTimestamp());
+    const hb = setInterval(() => {
+      set(presenceRef, serverTimestamp());
+    }, 30000);
+
+    const unsubscribe = onValue(userRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        updatingFromRtdb.current = true;
+        setUser(prev => {
+          // Sync mapped fields from Admin
+          const mappedUser = {
+            ...prev,
+            ...data,
+            totalBalance: typeof data.balance === 'number' ? data.balance : prev.totalBalance,
+            nickname: data.holderName || prev.nickname,
+            // Add other mappings if necessary
+          };
+          return mappedUser;
+        });
+        
+        if (data.history?.games) {
+          const bets = Object.values(data.history.games).reverse();
+          setMyBets(bets);
+        }
+        
+        if (data.history?.deposits || data.history?.withdrawals) {
+          const txs: Transaction[] = [];
+          if (data.history.deposits) {
+            Object.entries(data.history.deposits).forEach(([id, d]: [string, any]) => {
+              txs.push({ id, type: 'Deposit', status: d.status === 'Completed' ? 'Complete' : 'Failed', amount: d.amount, time: d.date, orderNumber: id });
+            });
+          }
+          if (data.history.withdrawals) {
+            Object.entries(data.history.withdrawals).forEach(([id, w]: [string, any]) => {
+              txs.push({ id, type: 'Withdraw', status: w.status === 'Completed' ? 'Complete' : 'Failed', amount: w.amount, time: w.date, orderNumber: id });
+            });
+          }
+          setTransactions(txs.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
+        }
+
+        if (data.blocked && isAuthenticated) {
+          setIsAuthenticated(false);
+          showToast("Your account has been blocked by admin.");
+          navigate('login');
+        }
+
+        setTimeout(() => { updatingFromRtdb.current = false; }, 100);
       }
-    }, 1500);
+    });
+
+    const configRef = ref(rtdb, 'system_config');
+    const configUnsubscribe = onValue(configRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) setSysConfig(prev => ({ ...prev, ...data }));
+    });
+
+    const gamesRef = ref(rtdb, 'games');
+    const gamesUnsubscribe = onValue(gamesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setGamesList(Object.values(data));
+      }
+    });
+
+    // Listen to WinGo Admin Overrides
+    const overrides = ['wingo_next_result_1m', 'wingo_next_result_3m', 'wingo_next_result_5m'];
+    const overrideUnsubs = overrides.map(path => 
+      onValue(ref(rtdb, path), (snapshot) => {
+        setWingoOverrides(prev => ({ ...prev, [path]: snapshot.val() }));
+      })
+    );
+
+    return () => {
+      unsubscribe();
+      configUnsubscribe();
+      gamesUnsubscribe();
+      overrideUnsubs.forEach(unsub => unsub());
+      clearInterval(hb);
+    };
+  }, [isAuthenticated, user.phone]);
+
+  // Sync LOCAL changes TO RTDB
+  useEffect(() => {
+    if (!isAuthenticated || !user.phone || updatingFromRtdb.current) return;
+
+    const userRef = ref(rtdb, `users/${user.phone}`);
+    update(userRef, {
+      balance: user.totalBalance,
+      holderName: user.nickname,
+      avatar: user.avatar,
+      lastLogin: user.lastLogin,
+      uid: user.uid,
+      vipLevel: user.vipLevel,
+      totalDeposit: user.totalDeposit,
+      exp: user.exp,
+      phone: user.phone
+    });
+  }, [user.totalBalance, user.nickname, user.avatar, user.lastLogin, user.vipLevel]);
+
+  useEffect(() => {
+    localStorage.setItem('userState', JSON.stringify(user));
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem('transactionsState', JSON.stringify(transactions));
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('bonusRecords', JSON.stringify(bonusRecords));
+  }, [bonusRecords]);
+
+  useEffect(() => {
+    localStorage.setItem('myBets', JSON.stringify(myBets));
+  }, [myBets]);
+
+  const registerUser = async (data: Partial<User>) => {
+    if (!data.phone) return false;
+    
+    setIsLoading(true);
+    try {
+      const userRef = ref(rtdb, `users/${data.phone}`);
+      const snapshot = await get(userRef);
+      if (snapshot.exists()) {
+        showToast("Phone number already registered!");
+        return false;
+      }
+
+      const randomBonus = Math.floor(Math.random() * (sysConfig.maxRegBonus - sysConfig.minRegBonus + 1)) + sysConfig.minRegBonus;
+      const newUser: User = {
+        uid: Math.floor(1000000 + Math.random() * 9000000).toString(),
+        nickname: data.nickname || `Member${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+        avatar: data.avatar || 'https://i.pravatar.cc/150?u=' + Math.random(),
+        vipLevel: 0,
+        totalDeposit: 0,
+        exp: 0,
+        totalBalance: randomBonus,
+        thirdPartyBalance: 0,
+        arWallet: 0,
+        lotteryWallet: randomBonus,
+        safeBalance: 0,
+        lastLogin: new Date().toLocaleString(),
+        phone: data.phone,
+        loginPassword: data.loginPassword,
+        todayWithdrawalCount: 0,
+        maxWithdrawalAllowed: 0,
+        attendanceDays: 0,
+        lastAttendanceDate: '',
+        wagerReq: 0
+      };
+
+      await set(userRef, {
+        ...newUser,
+        balance: newUser.totalBalance,
+        holderName: newUser.nickname,
+        createdAt: Date.now()
+      });
+
+      const bonusId = Math.random().toString(36).substr(2, 9);
+      const bonusDate = new Date().toLocaleString();
+      
+      setTransactions([]);
+      setMyBets([]);
+      setBonusRecords([{ id: bonusId, name: 'Welcome Bonus', amount: randomBonus, date: bonusDate }]);
+      
+      await set(ref(rtdb, `users/${data.phone}/history/bonus/${bonusId}`), {
+        id: bonusId, name: 'Welcome Bonus', amount: randomBonus, date: bonusDate
+      });
+
+      setUser(newUser);
+      setIsAuthenticated(true);
+      showToast(`Registered! Got ₹${randomBonus} bonus!`, 3000);
+      navigate('home');
+      return true;
+    } catch (e) {
+      showToast("Registration failed. Please try again.");
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
   
-  const login = (data?: Partial<User>) => {
-    if (data) setUser(prev => ({ ...prev, ...data }));
-    setIsAuthenticated(true);
-    navigate('home');
-    // Show first deposit bonus shortly after login, if not hidden today
-    setTimeout(() => {
-      const hiddenDate = localStorage.getItem('hideFirstDepositBonus');
-      if (hiddenDate !== new Date().toDateString()) {
-        setShowFirstDeposit(true);
+  const login = async (phone: string, password?: string) => {
+    setIsLoading(true);
+    try {
+      const userRef = ref(rtdb, `users/${phone}`);
+      const snapshot = await get(userRef);
+      if (!snapshot.exists()) {
+        showToast("User not found!");
+        return false;
       }
-    }, 1500);
+
+      const data = snapshot.val();
+      if (password && data.loginPassword !== password) {
+        showToast("Incorrect password!");
+        return false;
+      }
+
+      if (data.blocked) {
+        showToast("Your account is blocked.");
+        return false;
+      }
+
+      // Clear old state before login
+      setTransactions([]);
+      setMyBets([]);
+      setBonusRecords([]);
+
+      const updatedUser = {
+        ...user,
+        ...data,
+        totalBalance: data.balance || data.totalBalance || 0,
+        nickname: data.holderName || data.nickname || "Member",
+        lastLogin: new Date().toLocaleString()
+      };
+      
+      setUser(updatedUser);
+      setIsAuthenticated(true);
+      navigate('home');
+      return true;
+    } catch (e) {
+      showToast("Login failed.");
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const logout = () => { 
     setIsAuthenticated(false); 
+    setUser({
+      uid: '',
+      nickname: 'Member',
+      avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026024d',
+      vipLevel: 0,
+      totalDeposit: 0,
+      exp: 0,
+      totalBalance: 0,
+      thirdPartyBalance: 0,
+      arWallet: 0,
+      lotteryWallet: 0,
+      safeBalance: 0.00,
+      lastLogin: '',
+      phone: '',
+      todayWithdrawalCount: 0,
+      maxWithdrawalAllowed: 0,
+      attendanceDays: 0,
+      lastAttendanceDate: '',
+    });
+    setTransactions([]);
+    setMyBets([]);
+    setBonusRecords([]);
+    localStorage.removeItem('userState');
+    localStorage.removeItem('transactionsState');
+    localStorage.removeItem('myBets');
+    localStorage.removeItem('bonusRecords');
+    localStorage.removeItem('auth');
     navigate('login'); 
   };
 
@@ -247,90 +569,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addBank = (bank: any) => {
     setBanks(prev => [...prev, bank]);
+    if (user.phone) {
+      update(ref(rtdb, `users/${user.phone}/withdrawalDetails`), { savedBank: bank });
+    }
   };
 
   const addUpi = (upi: any) => {
     setUpis(prev => [...prev, upi]);
+    if (user.phone) {
+      update(ref(rtdb, `users/${user.phone}/withdrawalDetails`), { savedUpi: upi });
+    }
   };
-
-  const [user, setUser] = useState<User>(() => {
-    const saved = localStorage.getItem('userState');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {
-      uid: '1386823',
-      nickname: 'MemberNNGE7BFH',
-      avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026024d',
-      vipLevel: 0,
-      totalDeposit: 0,
-      exp: 0,
-      totalBalance: 0,
-      thirdPartyBalance: 0,
-      arWallet: 0,
-      lotteryWallet: 0,
-      safeBalance: 0.00,
-      lastLogin: '2026-06-17 23:32:48',
-      phone: '9876543210',
-      todayWithdrawalCount: 0,
-      maxWithdrawalAllowed: 0,
-      attendanceDays: 0,
-      lastAttendanceDate: '',
-    };
-  });
-
-  useEffect(() => {
-    localStorage.setItem('userState', JSON.stringify(user));
-  }, [user]);
-
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('transactionsState');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('transactionsState', JSON.stringify(transactions));
-  }, [transactions]);
-
-  const [bonusRecords, setBonusRecords] = useState<{ id: string, name: string, amount: number, date: string }[]>(() => {
-    const saved = localStorage.getItem('bonusRecords');
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e) {}
-    }
-    return [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('bonusRecords', JSON.stringify(bonusRecords));
-  }, [bonusRecords]);
 
   const addBonusRecord = useCallback((name: string, amount: number) => {
     const id = Math.random().toString(36).substr(2, 9);
     const date = new Date().toLocaleString('en-US', { hour12: false }).replace(',', '');
-    
     setBonusRecords(prev => [{ id, name, amount, date }, ...prev]);
-  }, []);
-
-  const [myBets, setMyBets] = useState<any[]>(() => {
-    const saved = localStorage.getItem('myBets');
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e) {}
+    if (user.phone) {
+      set(ref(rtdb, `users/${user.phone}/history/bonus/${id}`), { id, name, amount, date });
     }
-    return [];
-  });
+  }, [user.phone]);
 
   useEffect(() => {
-    localStorage.setItem('myBets', JSON.stringify(myBets));
-  }, [myBets]);
-
-  useEffect(() => {
+    if (!isAuthenticated) return;
+    
     const interval = setInterval(() => {
       setMyBets(prevBets => {
         let changed = false;
@@ -356,54 +618,96 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (bet.period < currentPeriod) {
               changed = true;
               
-              let hash = 0;
-              for (let i = 0; i < bet.period.length; i++) {
-                  hash = Math.imul(31, hash) + bet.period.charCodeAt(i) | 0;
+              // Use pre-fetched overrides from state
+              let result: any = null;
+              const overridePath = duration === 60 ? 'wingo_next_result_1m' : (duration === 180 ? 'wingo_next_result_3m' : 'wingo_next_result_5m');
+              const overrideData = wingoOverrides[overridePath];
+              
+              if (overrideData && overrideData.number !== undefined) {
+                const num = overrideData.number;
+                const size = num >= 5 ? 'Big' : 'Small';
+                let color = 'red';
+                if (num === 0) color = 'split-red-purple';
+                else if (num === 5) color = 'split-green-purple';
+                else if (num % 2 !== 0) color = 'green';
+                result = { num, size, color };
               }
-              const num = Math.abs(hash) % 10;
-              const size = num >= 5 ? 'Big' : 'Small';
-              let color = 'red';
-              if (num === 0) color = 'split-red-purple';
-              else if (num === 5) color = 'split-green-purple';
-              else if (num % 2 !== 0) color = 'green';
-              const result = { num, size, color };
+
+              if (!result) {
+                let hash = 0;
+                for (let j = 0; j < bet.period.length; j++) {
+                    hash = Math.imul(31, hash) + bet.period.charCodeAt(j) | 0;
+                }
+                const num = Math.abs(hash) % 10;
+                const size = num >= 5 ? 'Big' : 'Small';
+                let color = 'red';
+                if (num === 0) color = 'split-red-purple';
+                else if (num === 5) color = 'split-green-purple';
+                else if (num % 2 !== 0) color = 'green';
+                result = { num, size, color };
+              }
 
               let won = false;
               if (bet.type === 'Big' && result.size === 'Big') won = true;
               if (bet.type === 'Small' && result.size === 'Small') won = true;
+              if (bet.type === 'Win' && result.color.includes('green')) won = true;
               if (bet.type === 'Green' && result.color.includes('green')) won = true;
               if (bet.type === 'Red' && result.color.includes('red')) won = true;
               if (bet.type === 'Purple' && result.color.includes('purple')) won = true;
               if (typeof bet.type === 'number' && bet.type === result.num) won = true;
 
-              if (won) {
-                 let payout = 0;
-                 if (typeof bet.type === 'number') payout = bet.amount * 9;
-                 else payout = bet.amount * 1.96;
-                 
-                 balanceAddition += payout;
-                 return { ...bet, status: 'Succeed', payout, result };
-              } else {
-                 return { ...bet, status: 'Failed', payout: -bet.amount, result };
+              const updatedBet = won 
+                ? { ...bet, status: 'Succeed', payout: typeof bet.type === 'number' ? bet.amount * 9 : bet.amount * 1.96, result }
+                : { ...bet, status: 'Failed', payout: -bet.amount, result };
+
+              if (won) balanceAddition += updatedBet.payout;
+              
+              // Sync result to RTDB
+              if (user.phone) {
+                update(ref(rtdb, `users/${user.phone}/history/games/${bet.id || bet.period}`), updatedBet);
               }
+
+              return updatedBet;
             }
           }
           return bet;
         });
 
         if (changed) {
-           if (balanceAddition > 0) {
-             setUser(u => ({ ...u, totalBalance: u.totalBalance + balanceAddition }));
-           }
-           return newBets;
+          if (balanceAddition > 0) {
+            setUser(u => ({ ...u, totalBalance: u.totalBalance + balanceAddition }));
+          }
+          return newBets;
         }
         return prevBets;
       });
     }, 1000);
     return () => clearInterval(interval);
+  }, [user.phone, isAuthenticated, wingoOverrides]);
+
+  const [showSystemPopup, setShowSystemPopup] = useState(false);
+  const [systemPopupMessage, setSystemPopupMessage] = useState('');
+  const [systemPopupTitle, setSystemPopupTitle] = useState('WELCOME');
+
+  const triggerSystemPopup = useCallback((title: string, message: string) => {
+    setSystemPopupTitle(title);
+    setSystemPopupMessage(message);
+    setShowSystemPopup(true);
   }, []);
 
-  const addTransaction = (tx: Transaction) => setTransactions(prev => [tx, ...prev]);
+  const addTransaction = (tx: Transaction) => {
+    setTransactions(prev => [tx, ...prev]);
+    if (user.phone) {
+      const type = tx.type === 'Deposit' ? 'deposits' : 'withdrawals';
+      set(ref(rtdb, `users/${user.phone}/history/${type}/${tx.id}`), {
+        amount: tx.amount,
+        date: tx.time,
+        status: tx.status === 'Complete' ? 'Completed' : 'Processing',
+        utr: tx.orderNumber,
+        method: tx.type === 'Deposit' ? 'UPI' : 'Bank'
+      });
+    }
+  };
 
   return (
     <AppContext.Provider value={{
@@ -414,6 +718,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showCaptcha, setShowCaptcha, triggerCaptcha, captchaSuccess,
       selectedBankName, setSelectedBankName,
       addingBankName, setAddingBankName,
+      pendingDepositAmount, setPendingDepositAmount,
       banks, addBank,
       selectedUpiCode, setSelectedUpiCode,
       upis, addUpi,
@@ -422,7 +727,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       withdrawInstructions, setWithdrawInstructions,
       unreadNotifications, markNotificationsRead,
       myBets, setMyBets,
-      bonusRecords, addBonusRecord
+      bonusRecords, addBonusRecord,
+      showSystemPopup, setShowSystemPopup,
+      systemPopupMessage, setSystemPopupMessage,
+      systemPopupTitle, setSystemPopupTitle,
+      triggerSystemPopup,
+      sysConfig,
+      gamesList
     }}>
       {children}
     </AppContext.Provider>
