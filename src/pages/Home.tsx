@@ -202,9 +202,9 @@ export function Home() {
       </div>
 
       {/* Main Content Area (Sidebar + Grid) */}
-      <div className="flex p-3 gap-3">
+      <div className="flex p-3 gap-3 relative">
         {/* Sidebar categories */}
-        <div className="w-20 space-y-3 shrink-0">
+        <div className="w-20 space-y-3 shrink-0 sticky top-4 z-10 self-start">
           {categories.map((cat) => (
             <button
               key={cat.id}
