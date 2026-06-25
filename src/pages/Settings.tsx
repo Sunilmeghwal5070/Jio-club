@@ -4,11 +4,58 @@ import { Header } from '../components/Header';
 import { ChevronRight, Lock, Mail, Info, Copy } from 'lucide-react';
 
 export function Settings() {
-  const { user, navigate } = useApp();
+  const { user, navigate, setNickname } = useApp();
+  const [showNickModal, setShowNickModal] = React.useState(false);
+  const [newNick, setNewNick] = React.useState(user.nickname);
+
+  const handleUpdateNickname = async () => {
+    if (!newNick.trim()) return;
+    const success = await setNickname(newNick.trim());
+    if (success) setShowNickModal(false);
+  };
 
   return (
     <div className="min-h-screen bg-bg-base relative pb-6">
       <Header title="Settings Center" />
+
+      {/* Nickname Modal */}
+      {showNickModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-[#22272e] rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+            <div className="bg-gradient-to-r from-[#2583F7] to-[#145DD8] py-6 text-center">
+               <h2 className="text-xl font-bold text-white tracking-tight">Edit Nickname</h2>
+            </div>
+            
+            <div className="p-6">
+               <div className="mb-6">
+                 <label className="block text-gray-400 text-xs font-medium uppercase tracking-widest mb-2 ml-1">New Nickname</label>
+                 <input 
+                   type="text" 
+                   value={newNick}
+                   onChange={(e) => setNewNick(e.target.value)}
+                   className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                   autoFocus
+                 />
+               </div>
+               
+               <div className="flex gap-3">
+                 <button 
+                   onClick={() => setShowNickModal(false)}
+                   className="flex-1 bg-white/5 text-gray-300 font-bold py-3.5 rounded-2xl hover:bg-white/10 transition-colors"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                   onClick={handleUpdateNickname}
+                   className="flex-1 bg-gradient-to-r from-[#2583F7] to-[#145DD8] text-white font-bold py-3.5 rounded-2xl active:scale-95 transition-transform"
+                 >
+                   Save
+                 </button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 mt-6">
         {/* Profile Card */}
@@ -23,7 +70,7 @@ export function Settings() {
           
           <div className="flex items-center justify-between py-4 border-b border-white/5">
             <span className="text-gray-400 text-sm">Nickname</span>
-            <div className="flex items-center gap-2 text-gray-200 cursor-pointer hover:text-white transition-colors" onClick={() => navigate('account')}>
+            <div className="flex items-center gap-2 text-gray-200 cursor-pointer hover:text-white transition-colors" onClick={() => { setNewNick(user.nickname); setShowNickModal(true); }}>
               <span>{user.nickname}</span>
               <ChevronRight size={18} className="text-gray-500" />
             </div>

@@ -3,7 +3,7 @@ import { useApp, getVipDetails } from '../store';
 import { Header } from '../components/Header';
 import { Clock, BookOpen, Volume2, RefreshCw } from 'lucide-react';
 import { rtdb } from '../firebase';
-import { ref, set } from 'firebase/database';
+import { ref, set, update } from 'firebase/database';
 
 import { formatCurrency } from '../utils';
 
@@ -226,22 +226,43 @@ export function Wingo() {
 
   // Check for resolved bets when current period changes to show the popup
   useEffect(() => {
-    // If the latest resolved bet is a win and hasn't been shown in this session
-    const newlyResolvedWon = myBets.find(bet => 
+    // If there are newly resolved winning bets for the previous period that haven't been shown
+    const newlyResolvedWinners = myBets.filter(bet => 
       bet.status === 'Succeed' && 
       bet.period === String(Number(currentPeriod)-1) &&
       !shownWinIds.current.has(bet.id)
     );
     
-    if (newlyResolvedWon) {
-       shownWinIds.current.add(newlyResolvedWon.id);
-       setWinPopup(newlyResolvedWon);
+    if (newlyResolvedWinners.length > 0) {
+       // Mark all newly resolved winners as shown to prevent multiple popups for the same period
+       newlyResolvedWinners.forEach(bet => shownWinIds.current.add(bet.id));
+       setWinPopup(newlyResolvedWinners[0]);
     }
   }, [myBets, currentPeriod]);
 
+  // Auto-close win popup after 3 seconds
+  useEffect(() => {
+    if (winPopup) {
+      const timer = setTimeout(() => {
+        setWinPopup(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [winPopup]);
+
+  const [showBetSuccess, setShowBetSuccess] = useState(false);
+  const [lastBetInfo, setLastBetInfo] = useState<{type: string | number, amount: number} | null>(null);
+
   const handleBet = (type: string | number, amount: number, customMultiplier?: number) => {
+    if (timeLeft <= 5) {
+      showToast('Betting is locked for the last 5 seconds');
+      return;
+    }
+
     const finalMultiplier = customMultiplier || multiplier;
     const totalBet = amount * finalMultiplier;
+    const isNumberBet = typeof type === 'number';
+    const potentialPayout = isNumberBet ? totalBet * 9 : totalBet * 1.8;
     if (user.totalBalance < totalBet) {
       showToast('Insufficient balance for this bet!');
       return;
@@ -251,20 +272,36 @@ export function Wingo() {
     const newExp = user.exp + totalBet;
     const vipInfo = getVipDetails(newExp);
 
-    setUser(u => ({
-      ...u,
-      totalBalance: u.totalBalance - totalBet,
-      exp: newExp,
-      vipLevel: vipInfo.level
-    }));
+    setUser(u => {
+      const newBalance = u.totalBalance - totalBet;
+      // Sync to RTDB immediately so user sees deduction on all devices/refresh
+      if (u.phone) {
+        update(ref(rtdb, `users/${u.phone}`), { 
+          balance: newBalance,
+          exp: newExp,
+          vipLevel: vipInfo.level
+        });
+      }
+      return {
+        ...u,
+        totalBalance: newBalance,
+        exp: newExp,
+        vipLevel: vipInfo.level
+      };
+    });
+
+    const freshNow = Date.now();
+    const freshPeriod = getPeriodId(freshNow, currentDuration);
 
     setMyBets(prev => {
       const newBet = {
         id: Date.now().toString(),
-        period: currentPeriod,
+        period: freshPeriod,
         type,
         value: type, // Admin uses 'value'
         amount: totalBet,
+        baseAmount: amount,
+        multiplier: finalMultiplier,
         status: 'Pending',
         phone: user.phone,
         timestamp: new Date().toLocaleString('en-US', { hour12: false }).replace(',', '')
@@ -273,10 +310,18 @@ export function Wingo() {
       // Push to Admin Live Bets node
       set(ref(rtdb, `wingo_live_user_bets/${newBet.id}`), newBet);
       
+      // Push to User's private history node so it shows in "My History" immediately and survives sync
+      if (user.phone) {
+        set(ref(rtdb, `users/${user.phone}/history/games/${newBet.id}`), newBet);
+      }
+      
       return [newBet, ...prev];
     });
 
-    showToast(`Bet ₹${totalBet} on ${type}! (+${totalBet} EXP)`);
+    setLastBetInfo({ type, amount: totalBet });
+    setShowBetSuccess(true);
+    // Auto close after 2 seconds
+    setTimeout(() => setShowBetSuccess(false), 2000);
   };
 
   return (
@@ -439,22 +484,24 @@ export function Wingo() {
             {myBets.map((bet, i) => (
               <div key={i} className="bg-card-base rounded-lg p-3 border border-white/5 flex flex-col gap-1 relative shadow">
                 <div className="flex items-center gap-2">
-                   <div className={`text-xs font-bold px-2 py-1 rounded shadow ${bet.type === 'Big' ? 'bg-[#D97706]' : bet.type === 'Small' ? 'bg-[#059669]' : typeof bet.type === 'number' ? 'bg-purple-500' : 'bg-emerald-500'} text-white`}>{bet.type}</div>
-                   <div className="text-gray-300 font-mono text-sm tracking-tight">{bet.period}</div>
+                   <div className={`text-[10px] font-bold px-2 py-0.5 rounded shadow ${bet.type === 'Big' ? 'bg-[#D97706]' : bet.type === 'Small' ? 'bg-[#059669]' : typeof bet.type === 'number' ? 'bg-purple-500' : 'bg-emerald-500'} text-white uppercase`}>{bet.type}</div>
+                   <div className="text-gray-300 font-mono text-xs tracking-tight">{bet.period}</div>
                 </div>
                 <div className="text-[10px] text-gray-500 font-mono">{bet.timestamp}</div>
-                <div className={`absolute top-3 right-3 text-xs font-bold px-3 py-1 rounded shadow-sm border bg-black/20 ${bet.status === 'Succeed' ? 'border-blue-500 text-blue-500' : bet.status === 'Failed' ? 'border-[#FF453A] text-[#FF453A]' : 'border-yellow-500 text-yellow-500'}`}>
+                <div className={`absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border bg-black/20 ${bet.status === 'Succeed' ? 'border-blue-500 text-blue-500' : bet.status === 'Failed' ? 'border-[#FF453A] text-[#FF453A]' : 'border-yellow-500 text-yellow-500'}`}>
                   {bet.status}
                 </div>
-                {bet.status !== 'Pending' && (
-                  <div className={`absolute bottom-3 right-3 font-bold text-sm ${bet.payout > 0 ? 'text-blue-500' : 'text-[#FF453A]'}`}>
-                     {bet.payout > 0 ? `+₹${bet.payout.toFixed(2)}` : `-₹${Math.abs(bet.payout).toFixed(2)}`}
-                  </div>
-                )}
+                <div className="flex justify-between items-center mt-1">
+                  <div className="text-xs text-gray-400 font-medium">₹{bet.amount.toFixed(2)}</div>
+                  {bet.status !== 'Pending' && (
+                    <div className={`font-bold text-sm ${bet.payout > 0 ? 'text-blue-500' : 'text-[#FF453A]'}`}>
+                       {bet.payout > 0 ? `+₹${bet.payout.toFixed(2)}` : `-₹${Math.abs(bet.payout).toFixed(2)}`}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             {myBets.length === 0 && <div className="text-center py-8 text-gray-400 text-sm font-medium">No records found</div>}
-            {/* My history tab map output */}
           </div>
         )}
 
@@ -588,9 +635,23 @@ export function Wingo() {
             </div>
             
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2">
-               <input type="checkbox" id="autoclose" className="w-4 h-4 rounded border-white/50 bg-white/10 focus:ring-0 checked:bg-white checked:border-white transition-all appearance-none flex items-center justify-center relative after:content-['✓'] after:text-emerald-500 after:absolute after:hidden checked:after:block after:font-bold after:text-xs" />
+               <input type="checkbox" id="autoclose" checked readOnly className="w-4 h-4 rounded border-white/50 bg-white/10 focus:ring-0 checked:bg-white checked:border-white transition-all appearance-none flex items-center justify-center relative after:content-['✓'] after:text-emerald-500 after:absolute after:hidden checked:after:block after:font-bold after:text-xs" />
                <label htmlFor="autoclose" className="text-white text-xs font-medium opacity-80 cursor-pointer select-none">3 seconds auto close</label>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showBetSuccess && lastBetInfo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none p-6">
+          <div className="bg-[#22272e]/90 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col items-center animate-scale-up-fast">
+            <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-1">Bet Successful</h3>
+            <p className="text-gray-400 text-sm">₹{lastBetInfo.amount.toFixed(2)} on {lastBetInfo.type}</p>
           </div>
         </div>
       )}

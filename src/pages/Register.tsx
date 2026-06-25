@@ -3,23 +3,102 @@ import { useApp } from '../store';
 import { ChevronLeft, Lock, Smartphone, Users, FileText, Eye, EyeOff } from 'lucide-react';
 
 export function Register() {
-  const { navigate, registerUser, triggerCaptcha } = useApp();
+  const { navigate, registerUser, setNickname } = useApp();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
+  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [showBonusModal, setShowBonusModal] = useState(false);
+  const [welcomeBonus, setWelcomeBonus] = useState<number>(0);
+  const [nickname, setNicknameInput] = useState('');
 
   const handleRegister = async () => {
     if (!phone || !password || !agreed) return;
     
     setLoggingIn(true);
-    await registerUser({ phone, loginPassword: password }); 
+    const bonus = await registerUser({ phone, loginPassword: password }); 
     setLoggingIn(false);
+    if (bonus !== null) {
+      setWelcomeBonus(bonus);
+      setShowNicknameModal(true);
+    }
+  };
+
+  const handleConfirmNickname = async () => {
+    if (!nickname.trim()) return;
+    await setNickname(nickname.trim());
+    setShowNicknameModal(false);
+    setShowBonusModal(true);
   };
 
   return (
     <div className="min-h-screen bg-bg-base relative flex flex-col">
+      {/* Nickname Modal */}
+      {showNicknameModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-[#22272e] rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+            <div className="bg-gradient-to-r from-[#2583F7] to-[#145DD8] py-6 text-center">
+               <h2 className="text-xl font-bold text-white tracking-tight">Set Nickname</h2>
+               <p className="text-blue-100/70 text-xs mt-1">Please enter your display name</p>
+            </div>
+            
+            <div className="p-6">
+               <div className="mb-6">
+                 <label className="block text-gray-400 text-xs font-medium uppercase tracking-widest mb-2 ml-1">Nickname</label>
+                 <input 
+                   type="text" 
+                   value={nickname}
+                   onChange={(e) => setNicknameInput(e.target.value)}
+                   placeholder="Enter nickname..."
+                   className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                   autoFocus
+                 />
+               </div>
+               
+               <button 
+                 onClick={handleConfirmNickname}
+                 className="w-full bg-gradient-to-r from-[#2583F7] to-[#145DD8] text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/20 active:scale-95 transition-transform"
+               >
+                 Confirm
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Welcome Bonus Modal */}
+      {showBonusModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-sm bg-[#22272e] rounded-[32px] overflow-hidden shadow-[0_20px_50px_rgba(37,131,247,0.3)] border border-white/10 relative">
+            {/* Celebration Background */}
+            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-blue-600/20 to-transparent pointer-events-none" />
+            
+            <div className="pt-10 pb-6 text-center px-6 relative z-10">
+               <div className="w-24 h-24 bg-gradient-to-br from-yellow-300 via-amber-500 to-orange-600 rounded-full mx-auto mb-6 flex items-center justify-center shadow-[0_10px_30px_rgba(245,158,11,0.4)] animate-bounce border-4 border-white/20">
+                 <span className="text-4xl">🎁</span>
+               </div>
+               
+               <h2 className="text-2xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
+               <p className="text-gray-400 text-sm mb-6">You've received a special welcome bonus for joining us.</p>
+               
+               <div className="bg-black/40 border border-white/5 rounded-2xl p-6 mb-8 shadow-inner">
+                 <div className="text-xs text-blue-400 font-bold uppercase tracking-[3px] mb-1">Received Amount</div>
+                 <div className="text-5xl font-black text-white tracking-tighter">₹{welcomeBonus}</div>
+               </div>
+               
+               <button 
+                 onClick={() => navigate('home')}
+                 className="w-full bg-gradient-to-r from-[#2583F7] to-[#145DD8] hover:from-[#145DD8] hover:to-[#1149A6] text-white font-black py-4 rounded-2xl shadow-[0_8px_20px_rgba(37,131,247,0.4)] active:scale-95 transition-all uppercase tracking-[2px] border border-white/20"
+               >
+                 GET IT NOW
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Basic header for login flow */}
       <div className="flex items-center px-4 h-14 border-b border-white/5 relative bg-bg-base">
         <button onClick={() => navigate('login')} className="p-2 -ml-2 rounded-full absolute hover:bg-white/5 transition-colors">

@@ -71,7 +71,8 @@ interface AppContextType {
   addTransaction: (tx: Transaction) => void;
   isAuthenticated: boolean;
   login: (phone: string, password?: string) => Promise<boolean>;
-  registerUser: (data: Partial<User>) => Promise<boolean>;
+  registerUser: (data: Partial<User>) => Promise<number | null>;
+  setNickname: (name: string) => Promise<boolean>;
   logout: () => void;
   showFirstDeposit: boolean;
   setShowFirstDeposit: (val: boolean) => void;
@@ -103,6 +104,8 @@ interface AppContextType {
   setMyBets: React.Dispatch<React.SetStateAction<any[]>>;
   bonusRecords: { id: string, name: string, amount: number, date: string }[];
   addBonusRecord: (name: string, amount: number) => void;
+  showNamePopup: boolean;
+  setShowNamePopup: (val: boolean) => void;
   showSystemPopup: boolean;
   setShowSystemPopup: (val: boolean) => void;
   systemPopupMessage: string;
@@ -126,7 +129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
-    return localStorage.getItem('route') as AppRoute || (localStorage.getItem('auth') === 'true' ? 'home' : 'login');
+    return localStorage.getItem('auth') === 'true' ? 'home' : 'login';
   });
 
   useEffect(() => {
@@ -134,9 +137,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentRoute]);
 
   const [routeHistory, setRouteHistory] = useState<AppRoute[]>(() => {
-    const saved = localStorage.getItem('route') as AppRoute;
     const isAuth = localStorage.getItem('auth') === 'true';
-    return [saved || (isAuth ? 'home' : 'login')];
+    return [isAuth ? 'home' : 'login'];
   });
 
   useEffect(() => {
@@ -163,6 +165,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [showFirstDeposit, setShowFirstDeposit] = useState(false);
+  const [showNamePopup, setShowNamePopup] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowFirstDeposit(true);
+      
+      // If user nickname is default (starts with Member and long enough) or empty
+      const isDefault = !user.nickname || user.nickname === 'Member' || (user.nickname.startsWith('Member') && user.nickname.length > 6);
+      if (isDefault) {
+        setShowNamePopup(true);
+      }
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    // Reset scroll position on route change
+    window.scrollTo(0, 0);
+  }, [currentRoute]);
   const [showCaptcha, setShowCaptcha] = useState(false);
   const [captchaCallback, setCaptchaCallback] = useState<(() => void) | null>(null);
   const [selectedBankName, setSelectedBankName] = useState<string>('');
@@ -468,11 +488,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUser(newUser);
       setIsAuthenticated(true);
       showToast(`Registered! Got ₹${randomBonus} bonus!`, 3000);
-      navigate('home');
-      return true;
+      return randomBonus;
     } catch (e) {
       showToast("Registration failed. Please try again.");
-      return false;
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -648,23 +667,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
               }
 
               let won = false;
-              if (bet.type === 'Big' && result.size === 'Big') won = true;
-              if (bet.type === 'Small' && result.size === 'Small') won = true;
-              if (bet.type === 'Win' && result.color.includes('green')) won = true;
-              if (bet.type === 'Green' && result.color.includes('green')) won = true;
-              if (bet.type === 'Red' && result.color.includes('red')) won = true;
-              if (bet.type === 'Purple' && result.color.includes('purple')) won = true;
-              if (typeof bet.type === 'number' && bet.type === result.num) won = true;
+              let payoutMultiplier = 0;
+
+              if (bet.type === 'Big' && result.size === 'Big') { won = true; payoutMultiplier = 1.8; }
+              else if (bet.type === 'Small' && result.size === 'Small') { won = true; payoutMultiplier = 1.8; }
+              else if (bet.type === 'Green' && result.color.includes('green')) {
+                won = true;
+                payoutMultiplier = result.color.includes('split') ? 1.35 : 1.8;
+              }
+              else if (bet.type === 'Red' && result.color.includes('red')) {
+                won = true;
+                payoutMultiplier = result.color.includes('split') ? 1.35 : 1.8;
+              }
+              else if (bet.type === 'Violet' && result.color.includes('purple')) {
+                won = true;
+                payoutMultiplier = 4.05;
+              }
+              else if (typeof bet.type === 'number' && bet.type === result.num) {
+                won = true;
+                payoutMultiplier = 9;
+              }
 
               const updatedBet = won 
-                ? { ...bet, status: 'Succeed', payout: typeof bet.type === 'number' ? bet.amount * 9 : bet.amount * 1.96, result }
+                ? { ...bet, status: 'Succeed', payout: bet.amount * payoutMultiplier, result }
                 : { ...bet, status: 'Failed', payout: -bet.amount, result };
 
               if (won) balanceAddition += updatedBet.payout;
               
               // Sync result to RTDB
               if (user.phone) {
-                update(ref(rtdb, `users/${user.phone}/history/games/${bet.id || bet.period}`), updatedBet);
+                update(ref(rtdb, `users/${user.phone}/history/games/${bet.id}`), updatedBet);
               }
 
               return updatedBet;
@@ -674,7 +706,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
 
         if (changed) {
-          if (balanceAddition > 0) {
+          if (balanceAddition > 0 && user.phone) {
+            // Update RTDB balance directly to prevent sync issues
+            const userRef = ref(rtdb, `users/${user.phone}`);
+            get(userRef).then(snap => {
+              const currentBalance = snap.val()?.balance || 0;
+              update(userRef, { balance: currentBalance + balanceAddition });
+            });
+            
             setUser(u => ({ ...u, totalBalance: u.totalBalance + balanceAddition }));
           }
           return newBets;
@@ -709,11 +748,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setNickname = async (name: string) => {
+    if (!user.phone) return false;
+    try {
+      await update(ref(rtdb, `users/${user.phone}`), { nickname: name });
+      setUser(prev => ({ ...prev, nickname: name }));
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentRoute, navigate, goBack, user, setUser,
       transactions, addTransaction,
-      isAuthenticated, login, registerUser, logout,
+      isAuthenticated, login, registerUser, setNickname, logout,
       showFirstDeposit, setShowFirstDeposit,
       showCaptcha, setShowCaptcha, triggerCaptcha, captchaSuccess,
       selectedBankName, setSelectedBankName,
@@ -728,6 +779,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unreadNotifications, markNotificationsRead,
       myBets, setMyBets,
       bonusRecords, addBonusRecord,
+      showNamePopup, setShowNamePopup,
       showSystemPopup, setShowSystemPopup,
       systemPopupMessage, setSystemPopupMessage,
       systemPopupTitle, setSystemPopupTitle,

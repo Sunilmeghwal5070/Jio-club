@@ -107,7 +107,7 @@ export function DepositPayment() {
           <div className="bg-white p-2 rounded-xl mb-6">
             {/* Generate a mock QR code image using a placeholder API */}
             <img 
-              src={sysConfig.qrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}`} 
+              src={sysConfig.qrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR`} 
               alt="QR Code" 
               className="w-48 h-48 rounded"
             />
@@ -133,15 +133,15 @@ export function DepositPayment() {
           </div>
 
           <div className="flex w-full gap-3 mb-3">
-            <a href={`phonepe://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}`} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+            <a href={`intent://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR#Intent;scheme=upi;package=com.phonepe.app;end`} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
               <div className="w-4 h-4 rounded-full bg-white/20"></div> PhonePe
             </a>
-            <a href={`paytmmp://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}`} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+            <a href={`intent://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR#Intent;scheme=upi;package=net.one97.paytm;end`} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
               <div className="w-4 h-4 rounded-full bg-white/20"></div> Paytm
             </a>
           </div>
 
-          <a href={`upi://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}`} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-extrabold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+          <a href={`upi://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR`} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-extrabold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
             📱 Pay using other UPI Apps (GPay, BHIM, etc)
           </a>
         </div>

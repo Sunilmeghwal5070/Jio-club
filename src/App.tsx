@@ -40,9 +40,10 @@ import { AttendanceRules } from './pages/AttendanceRules';
 
 import { DepositPayment } from './pages/DepositPayment';
 import { SystemPopup } from './components/SystemPopup';
+import { NameRequirementModal } from './components/NameRequirementModal';
 
 function MainLayout() {
-  const { currentRoute, isAuthenticated, showCaptcha, showFirstDeposit } = useApp();
+  const { currentRoute, isAuthenticated, showCaptcha, showFirstDeposit, showNamePopup } = useApp();
 
   const renderPage = () => {
     // If not authenticated, force login or register
@@ -102,6 +103,7 @@ function MainLayout() {
       <BottomNav />
       {showCaptcha && <CaptchaModal />}
       {showFirstDeposit && <FirstDepositModal />}
+      {showNamePopup && <NameRequirementModal />}
       <GlobalOverlays />
       <SystemPopup />
     </div>
