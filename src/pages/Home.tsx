@@ -228,7 +228,7 @@ export function Home() {
           {displayGames.map((game) => (
             <div 
               key={game.id} 
-              className={`relative aspect-[4/5.2] rounded-[32px] overflow-hidden shadow-xl active:scale-95 transition-transform group cursor-pointer ${game.bg} border border-white/5`}
+              className={`relative aspect-[4/5.2] rounded-2xl overflow-hidden shadow-xl active:scale-95 transition-transform group cursor-pointer ${game.bg} border border-white/5`}
               onClick={() => {
                 if (game.url === 'wingo' || game.isRoute) {
                   navigate('wingo');
@@ -246,7 +246,7 @@ export function Home() {
 
               {/* Tag */}
               {game.tag && (
-                <div className={`absolute top-0 left-0 ${game.id === 'wingo' ? 'bg-black text-yellow-400' : 'bg-[#E11D48] text-white'} text-[9px] font-black px-2.5 py-1.5 rounded-br-2xl rounded-tl-xl shadow-lg uppercase tracking-tight z-10`}>
+                <div className={`absolute top-0 left-0 ${game.id === 'wingo' ? 'bg-black text-yellow-400' : 'bg-[#E11D48] text-white'} text-[9px] font-black px-2.5 py-1.5 rounded-br-2xl rounded-tl-2xl shadow-lg uppercase tracking-tight z-10`}>
                   {game.tag}
                 </div>
               )}
