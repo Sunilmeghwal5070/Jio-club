@@ -37,6 +37,39 @@ export function DepositPayment() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const getUpiUrl = (scheme: string = 'upi') => {
+    const tn = encodeURIComponent(`Jio club - ${user.uid}`);
+    return `${scheme}://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${pendingDepositAmount}&cu=INR&tn=${tn}`;
+  };
+
+  const handleAppPay = (scheme: string, appName: string) => {
+    const url = getUpiUrl(scheme);
+    
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    
+    let isAppOpened = false;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        isAppOpened = true;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      
+      if (!isAppOpened) {
+        showToast(`${appName} might not be installed on your phone. Please use another UPI app or scan the QR Code.`);
+      }
+    }, 2000);
+  };
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     showToast('Copied to clipboard');
@@ -107,7 +140,7 @@ export function DepositPayment() {
           <div className="bg-white p-2 rounded-xl mb-6">
             {/* Generate a mock QR code image using a placeholder API */}
             <img 
-              src={sysConfig.qrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR`} 
+              src={sysConfig.qrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getUpiUrl('upi'))}`} 
               alt="QR Code" 
               className="w-48 h-48 rounded"
             />
@@ -133,17 +166,17 @@ export function DepositPayment() {
           </div>
 
           <div className="flex w-full gap-3 mb-3">
-            <a href={`intent://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR#Intent;scheme=upi;package=com.phonepe.app;end`} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+            <button onClick={() => handleAppPay('phonepe', 'PhonePe')} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
               <div className="w-4 h-4 rounded-full bg-white/20"></div> PhonePe
-            </a>
-            <a href={`intent://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR#Intent;scheme=upi;package=net.one97.paytm;end`} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+            </button>
+            <button onClick={() => handleAppPay('paytmmp', 'Paytm')} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
               <div className="w-4 h-4 rounded-full bg-white/20"></div> Paytm
-            </a>
+            </button>
           </div>
 
-          <a href={`upi://pay?pa=${upiId}&pn=${merchantName}&am=${pendingDepositAmount}&cu=INR`} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-extrabold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+          <button onClick={() => handleAppPay('upi', 'UPI App')} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-extrabold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
             📱 Pay using other UPI Apps (GPay, BHIM, etc)
-          </a>
+          </button>
         </div>
 
         <div className="mt-6">
