@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>INR CLUB - Aviator</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bgDark: '#0A0A0A',
+                        panelDark: '#1E1E1E',
+                        panelLight: '#2C2C2C',
+                        aviatorRed: '#E41C38',
+                        btnGreen: '#28A745',
+                        btnRed: '#CB2424',
+                        btnOrange: '#D97A00',
+                        theme1: '#111111',
+                        theme2: '#120b22', 
+                        theme3: '#2a0a0e', 
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React, ReactDOM, Babel & Framer Motion -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+    <!-- Firebase App & Database SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Roboto+Mono:wght@700;900&display=swap');
+
+        body { background-color: #000; margin: 0; color: white; user-select: none; -webkit-tap-highlight-color: transparent; }
+        .app-container { max-width: 450px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; background-color: #0A0A0A; overflow: hidden; position: relative; }
+        ::-webkit-scrollbar { display: none; }
+        
+        .sunburst-bg {
+            transition: background-color 1s ease;
+            background-image: repeating-conic-gradient(
+                from 0deg,
+                rgba(255,255,255,0.015) 0deg 10deg,
+                rgba(255,255,255,0) 10deg 20deg
+            );
+        }
+
+        @keyframes flyaway {
+            0% { transform: translate(0px, 0px) rotate(0deg); opacity: 1; }
+            100% { transform: translate(150px, -100px) rotate(15deg); opacity: 0; }
+        }
+        .plane-crashed { animation: flyaway 0.6s forwards cubic-bezier(0.4, 0, 1, 1); }
+
+        /* Propeller Animation at the nose */
+        @keyframes propellerSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .propeller {
+            transform-origin: 98px 23.5px;
+            animation: propellerSpin 0.05s linear infinite;
+        }
+
+        /* Parachute Animation */
+        @keyframes parachuteDrop {
+            0% { transform: translateY(0) scale(0.5); opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(150px) scale(0.8); opacity: 0; }
+        }
+        .parachute-anim {
+            position: absolute;
+            animation: parachuteDrop 2s forwards ease-out;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        @keyframes spinFast { 100% { transform: rotate(360deg); } }
+        .loading-spin { animation: spinFast 0.5s linear infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { motion, AnimatePresence } = window.Motion;
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCd0sxHVTqBG3I6MhvP4mebxUS7EofkTo",
+            authDomain: "inr-club-d4500.firebaseapp.com",
+            databaseURL: "https://inr-club-d4500-default-rtdb.firebaseio.com",
+            projectId: "inr-club-d4500",
+            storageBucket: "inr-club-d4500.firebasestorage.app",
+            messagingSenderId: "496374937195",
+            appId: "1:496374937195:web:a0d7fc817e1b02fe23a32e"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const database = firebase.database();
+        const activePhone = localStorage.getItem('user_phone') || localStorage.getItem('inr_club_active_phone');
+
+        // Robust Login check
+        if (!activePhone) {
+            window.location.href = '/';
+        }
+
+        // --- GLOBAL SOUND CONTROLLER ---
+        window.soundEnabled = true;
+        let audioCtx = null;
+
+        const initAudio = () => {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        };
+
+        const playSound = (type) => {
+            if (!window.soundEnabled) return;
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+                gain.gain.setValueAtTime(0.8, now); 
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(600, now + 0.1);
+                osc.frequency.setValueAtTime(1000, now + 0.2);
+                gain.gain.setValueAtTime(1.0, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'crash') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(20, now + 0.6);
+                gain.gain.setValueAtTime(1.0, now); 
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                osc.start(now);
+                osc.stop(now + 0.6);
+            } else if (type === 'popup') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+                gain.gain.setValueAtTime(0.8, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'waiting') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(60, now);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.5);
+                gain.gain.linearRampToValueAtTime(0, now + 1.0);
+                osc.start(now);
+                osc.stop(now + 1.0);
+            }
+        };
+
+        // --- ICONS & COMPONENTS ---
+        const Icons = {
+            Minus: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"><line x1="4" y1="12" x2="20" y2="12"></line></svg>,
+            Plus: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="12" x2="20" y2="12"></line></svg>,
+            Menu: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
+            History: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+            Close: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        };
+
+        // Custom Plane with Animated Propeller
+        const PlaneIcon = () => (
+            <svg width="60" height="30" viewBox="0 0 100 50" fill="none" style={{transform: 'rotate(-5deg)', overflow: 'visible'}}>
+                <path d="M92.5 19.5C92.5 19.5 97.5 20.5 97.5 23.5C97.5 26.5 92.5 27.5 92.5 27.5L50 32L30 48L25 45L35 30L15 28L5 33L2 30L8 23.5L2 17L5 14L15 19L35 17L25 2L30 0L50 15L92.5 19.5Z" fill="#E41C38"/>
+                <path d="M85 23.5L75 18L77 28L85 23.5Z" fill="#FFA500" opacity="0.8"/>
+                <g className="propeller">
+                    <ellipse cx="98" cy="23.5" rx="2.5" ry="14" fill="white" opacity="0.7" />
+                </g>
+            </svg>
+        );
+
+        const ParachuteIcon = ({ avatar }) => (
+            <div className="flex flex-col items-center">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#28A745" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md">
+                    <path d="M12 2c-5.5 0-10 4.5-10 10 0 .5.5 1 1 1h18c.5 0 1-.5 1-1 0-5.5-4.5-10-10-10z" fill="rgba(40,167,69,0.3)"/>
+                    <path d="M2 12l10 10 10-10"/>
+                </svg>
+                <img src={avatar} className="w-4 h-4 rounded-full bg-gray-800 border border-white/50 -mt-2 shadow-lg" />
+            </div>
+        );
+
+        const getMultiplierColorClass = (val) => {
+            if (val < 2.0) return 'text-[#3498DB]';
+            if (val < 10.0) return 'text-[#9B59B6]';
+            return 'text-[#E74C3C]';
+        };
+
+        const initialHistory = Array.from({length: 30}).map(() => {
+            const r = Math.random();
+            if(r < 0.5) return (1.01 + Math.random() * 0.9);
+            if(r < 0.8) return (2.0 + Math.random() * 5);
+            return (7.0 + Math.random() * 20);
+        });
+
+        // --- MAIN APP COMPONENT ---
+        function AviatorApp() {
+            const [balance, setBalance] = useState(0);
+            const balanceRef = useRef(balance);
+            useEffect(() => { balanceRef.current = balance; }, [balance]);
+            
+            const [gameState, setGameState] = useState('waiting');
+            const [currentMultiplier, setCurrentMultiplier] = useState(1.00);
+            const [crashMultiplier, setCrashMultiplier] = useState(1.00);
+            const [countdown, setCountdown] = useState(5.0);
+            const [history, setHistory] = useState(initialHistory);
+            
+            const [fakePlayers, setFakePlayers] = useState([]);
+            const [winNotif, setWinNotif] = useState(null); 
+            const [parachutes, setParachutes] = useState([]);
+            
+            const [planePos, setPlanePos] = useState({ x: 0, y: 100 });
+            const [bgColorClass, setBgColorClass] = useState('bg-theme1');
+
+            const [panels, setPanels] = useState([
+                { id: 1, mode: 'bet', betAmount: 1, isBettingNext: false, inFlight: false, cashedOut: false, winAmount: 0, autoBet: false, autoCashOut: false, autoCashOutVal: 1.50 },
+                { id: 2, mode: 'bet', betAmount: 10, isBettingNext: false, inFlight: false, cashedOut: false, winAmount: 0, autoBet: false, autoCashOut: false, autoCashOutVal: 2.00 }
+            ]);
+
+            const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+            const [liveAvatars, setLiveAvatars] = useState([]);
+            
+            const [displayFakeCount, setDisplayFakeCount] = useState(0);
+            const [totalRandomPlayers, setTotalRandomPlayers] = useState(500);
+            const [lastRoundWasBait, setLastRoundWasBait] = useState(false);
+            
+            const [showDepositPopup, setShowDepositPopup] = useState(false);
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
+            const [soundUIEnabled, setSoundUIEnabled] = useState(true);
+            const [musicUIEnabled, setMusicUIEnabled] = useState(false);
+
+            const reqRef = useRef();
+            const startTimeRef = useRef();
+            const currentMultRef = useRef(1.00);
+            const crashMultRef = useRef(1.00);
+
+            // Firebase real-time balance listener
+            useEffect(() => {
+                if (!activePhone) return;
+                const userRef = database.ref('users/' + activePhone);
+                const handleValue = (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const bal = data.balance !== undefined ? data.balance : data.totalBalance;
+                        if (bal !== undefined) {
+                            setBalance(Number(bal));
+                        }
+                    }
+                };
+                userRef.on('value', handleValue);
+                return () => userRef.off('value', handleValue);
+            }, []);
+
+            // Deposit check
+            useEffect(() => {
+                if (balance < 1 && gameState === 'waiting' && !showDepositPopup) {
+                    setTimeout(() => { playSound('popup'); setShowDepositPopup(true); }, 1000);
+                }
+            }, [balance, gameState]);
+
+            // NEW CODE: Function to push game history to Firebase for home.html
+            const pushGameHistoryToFirebase = (betAmount, winAmount, status, multiplier) => {
+                if (!activePhone) return;
+                const userGamesHistoryRef = database.ref(`users/${activePhone}/history/games`);
+                const uniqueKey = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                const netAmt = status === 'Succeed' ? (winAmount - betAmount) : -betAmount;
+                const periodStr = Math.floor(Date.now() / 1000).toString().slice(-6); 
+
+                userGamesHistoryRef.child(uniqueKey).set({
+                    game: 'Aviator',
+                    period: periodStr,
+                    selection: status === 'Succeed' ? `${multiplier}x` : 'Lost',
+                    amount: betAmount,
+                    status: status,
+                    net: netAmt,
+                    date: new Date().toLocaleString(),
+                    timestamp: Date.now()
+                });
+            };
+
+            // RIGGED ALGORITHM
+            const generateRiggedCrashPoint = () => {
+                const isUserActive = panels.some(p => p.isBettingNext || (p.autoBet && balanceRef.current >= p.betAmount));
+                let result = 1.00;
+                let r = Math.random();
+
+                if (isUserActive) {
+                    if (lastRoundWasBait) {
+                        result = 1.00 + Math.random() * 0.40; 
+                    } else {
+                        if (r < 0.20) result = 1.00; 
+                        else if (r < 0.80) result = 1.01 + Math.random() * 0.49; 
+                        else result = 1.50 + Math.random() * 1.50; 
+                    }
+                    setLastRoundWasBait(false);
+                } else {
+                    if (r < 0.60) {
+                        result = 3.00 + Math.random() * 15.00; 
+                        setLastRoundWasBait(true);
+                    } else {
+                        result = 1.01 + Math.random() * 1.50;
+                        setLastRoundWasBait(false);
+                    }
+                }
+                return parseFloat(Math.max(1.00, result).toFixed(2));
+            };
+
+            const generateFakePlayers = () => {
+                const players = [];
+                const count = Math.floor(Math.random() * 15) + 15; 
+                for(let i=0; i<count; i++){
+                    players.push({
+                        id: Math.random(),
+                        name: `1***${Math.random().toString(36).substr(2, 1)}`,
+                        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${Math.random()}`,
+                        bet: (Math.floor(Math.random() * 90)*10 + 10),
+                        target: Math.max(1.01, (100 / (Math.random() * 100)) * 0.95), 
+                        cashedOut: false,
+                        winAmount: 0
+                    });
+                }
+                return players.sort((a,b) => b.bet - a.bet);
+            };
+
+            // GAME LOOP
+            useEffect(() => {
+                if (gameState === 'waiting') {
+                    const waitingSound = setInterval(() => playSound('waiting'), 1000);
+                    
+                    const targetFake = Math.floor(Math.random() * (10000 - 500 + 1)) + 500;
+                    setTotalRandomPlayers(targetFake);
+                    
+                    // Gradual Fake User Increment
+                    let currentFake = 0;
+                    const step = targetFake / 40; 
+                    const counterInterval = setInterval(() => {
+                        currentFake += step;
+                        if(currentFake >= targetFake) {
+                            currentFake = targetFake;
+                            clearInterval(counterInterval);
+                        }
+                        setDisplayFakeCount(Math.floor(currentFake));
+                    }, 100);
+
+                    // Execute Auto Bets Automatically at start of waiting
+                    setPanels(prev => prev.map(p => {
+                        if (p.autoBet && balanceRef.current >= p.betAmount && !p.isBettingNext) {
+                            return { ...p, isBettingNext: true };
+                        }
+                        return p;
+                    }));
+
+                    setFakePlayers(generateFakePlayers());
+                    setLiveAvatars([`https://api.dicebear.com/7.x/bottts/svg?seed=${Math.random()}`, `https://api.dicebear.com/7.x/bottts/svg?seed=${Math.random()}`, `https://api.dicebear.com/7.x/bottts/svg?seed=${Math.random()}`]);
+                    setCurrentMultiplier(1.00);
+                    currentMultRef.current = 1.00;
+                    setPlanePos({ x: 0, y: 100 });
+                    setBgColorClass('bg-theme1');
+                    setParachutes([]); 
+                    
+                    const newCrash = generateRiggedCrashPoint();
+                    setCrashMultiplier(newCrash);
+                    crashMultRef.current = newCrash;
+                    
+                    let time = 5.0;
+                    const timer = setInterval(() => {
+                        time -= 0.1;
+                        setCountdown(time > 0 ? time : 0);
+                        if(time <= 0.05) {
+                            clearInterval(timer);
+                            clearInterval(waitingSound);
+                            clearInterval(counterInterval);
+                            setDisplayFakeCount(targetFake);
+                            startFlight();
+                        }
+                    }, 100);
+                    return () => { clearInterval(timer); clearInterval(waitingSound); clearInterval(counterInterval); }
+                }
+            }, [gameState]);
+
+            const startFlight = () => {
+                let betDeduction = 0;
+                const updatedPanels = panels.map(p => {
+                    if (p.isBettingNext) {
+                        betDeduction += p.betAmount;
+                        return { ...p, isBettingNext: false, inFlight: true, cashedOut: false, winAmount: 0 };
+                    }
+                    return p;
+                });
+                if (betDeduction > 0) {
+                    const nextBal = parseFloat((balanceRef.current - betDeduction).toFixed(2));
+                    setBalance(nextBal);
+                    if (activePhone) {
+                        database.ref('users/' + activePhone).update({ balance: nextBal });
+                    }
+                }
+                setPanels(updatedPanels);
+                setGameState('flying');
+                setWinNotif(null);
+                startTimeRef.current = performance.now();
+                reqRef.current = requestAnimationFrame(updateFlight);
+            };
+
+            const spawnParachute = (avatar) => {
+                const newId = Math.random();
+                setParachutes(prev => {
+                    const next = [...prev, { id: newId, x: planePos.x, y: planePos.y, avatar }];
+                    return next.length > 8 ? next.slice(next.length - 8) : next; 
+                });
+            };
+
+            const updateFlight = (time) => {
+                const elapsedSec = (time - startTimeRef.current) / 1000;
+                let newMult = Math.max(1.00, Math.exp(elapsedSec * 0.08)); 
+
+                if (newMult >= crashMultRef.current) {
+                    crashFlight();
+                    return; 
+                }
+
+                currentMultRef.current = newMult;
+                setCurrentMultiplier(newMult);
+
+                setPanels(prev => {
+                    let updated = false;
+                    let addedAmount = 0;
+                    const newPanels = prev.map(p => {
+                        if (p.inFlight && !p.cashedOut && p.autoCashOut && currentMultRef.current >= p.autoCashOutVal) {
+                            if (p.autoCashOutVal <= crashMultRef.current) {
+                                const exactWin = parseFloat((p.betAmount * p.autoCashOutVal).toFixed(2));
+                                addedAmount += exactWin;
+                                showWinPopup(exactWin);
+                                spawnParachute(`https://api.dicebear.com/7.x/bottts/svg?seed=user`);
+                                playSound('win');
+                                updated = true;
+                                
+                                // NEW CODE: Push Win History for Auto Cashout
+                                pushGameHistoryToFirebase(p.betAmount, exactWin, 'Succeed', p.autoCashOutVal.toFixed(2));
+
+                                return { ...p, inFlight: false, cashedOut: true, winAmount: exactWin };
+                            }
+                        }
+                        return p;
+                    });
+                    if (updated && addedAmount > 0) {
+                        const nextBal = parseFloat((balanceRef.current + addedAmount).toFixed(2));
+                        setBalance(nextBal);
+                        if (activePhone) {
+                            database.ref('users/' + activePhone).update({ balance: nextBal });
+                        }
+                    }
+                    return updated ? newPanels : prev;
+                });
+
+                setFakePlayers(prev => {
+                    let spawnerCount = 0;
+                    return prev.map(fp => {
+                        if (!fp.cashedOut && currentMultRef.current >= fp.target && fp.target <= crashMultRef.current) {
+                            if(spawnerCount < 2) { spawnParachute(fp.avatar); spawnerCount++; }
+                            return { ...fp, cashedOut: true, winAmount: parseFloat((fp.bet * fp.target).toFixed(2)) };
+                        }
+                        return fp;
+                    });
+                });
+
+                if (newMult >= 10) setBgColorClass('bg-theme3');
+                else if (newMult >= 2) setBgColorClass('bg-theme2');
+
+                let targetX = Math.min(elapsedSec * 25, 85); 
+                let targetY = 100 - Math.min(elapsedSec * 35, 75); 
+                if (targetX === 85) {
+                    targetY += Math.sin(elapsedSec * 15) * 1.5;
+                    targetX += Math.cos(elapsedSec * 10) * 0.5;
+                }
+                setPlanePos({ x: targetX, y: targetY });
+
+                reqRef.current = requestAnimationFrame(updateFlight);
+            };
+
+            const crashFlight = () => {
+                cancelAnimationFrame(reqRef.current);
+                playSound('crash');
+                
+                const exactCrash = crashMultRef.current;
+                currentMultRef.current = exactCrash;
+                setCurrentMultiplier(exactCrash);
+                
+                setGameState('crashed');
+                setHistory(prev => [exactCrash, ...prev].slice(0, 30));
+                
+                setPanels(prev => prev.map(p => {
+                    if (p.inFlight && !p.cashedOut) { 
+                        // NEW CODE: Push Lose History
+                        pushGameHistoryToFirebase(p.betAmount, 0, 'Failed', exactCrash.toFixed(2));
+                        
+                        return { ...p, inFlight: false }; 
+                    }
+                    return p;
+                }));
+
+                setTimeout(() => {
+                    setGameState('waiting');
+                }, 4000); 
+            };
+
+            const showWinPopup = (amount) => {
+                setWinNotif(amount);
+                setTimeout(() => setWinNotif(null), 2500);
+            };
+
+            const handleManualCashOut = (index) => {
+                const mult = currentMultRef.current;
+                if (gameState !== 'flying') return; 
+
+                setPanels(prev => {
+                    const newPanels = [...prev];
+                    const p = newPanels[index];
+                    
+                    if (p.inFlight && !p.cashedOut) {
+                        const exactWin = parseFloat((p.betAmount * mult).toFixed(2));
+                        const nextBal = parseFloat((balanceRef.current + exactWin).toFixed(2));
+                        setBalance(nextBal);
+                        if (activePhone) {
+                            database.ref('users/' + activePhone).update({ balance: nextBal });
+                        }
+                        showWinPopup(exactWin);
+                        spawnParachute(`https://api.dicebear.com/7.x/bottts/svg?seed=user`);
+                        playSound('win');
+                        
+                        // NEW CODE: Push Win History for Manual Cashout
+                        pushGameHistoryToFirebase(p.betAmount, exactWin, 'Succeed', mult.toFixed(2));
+
+                        p.inFlight = false;
+                        p.cashedOut = true;
+                        p.winAmount = exactWin;
+                    }
+                    return newPanels;
+                });
+            };
+
+            const handleBetClick = (index) => {
+                const panel = panels[index];
+                
+                if (gameState === 'waiting') {
+                    if (panel.isBettingNext) {
+                        playSound('click');
+                        setPanels(prev => { const n = [...prev]; n[index].isBettingNext = false; return n; });
+                    } else {
+                        if (balance >= panel.betAmount) {
+                            playSound('click');
+                            setPanels(prev => { const n = [...prev]; n[index].isBettingNext = true; return n; });
+                        } else { 
+                            playSound('popup');
+                            setShowDepositPopup(true); 
+                        }
+                    }
+                } else if (gameState === 'flying') {
+                    if (panel.inFlight && !panel.cashedOut) {
+                        handleManualCashOut(index);
+                    } else {
+                        if (!panel.isBettingNext) {
+                            if(balance >= panel.betAmount) {
+                                playSound('click');
+                                setPanels(prev => { const n = [...prev]; n[index].isBettingNext = true; return n; });
+                            } else { playSound('popup'); setShowDepositPopup(true); }
+                        } else if(panel.isBettingNext){
+                             playSound('click');
+                             setPanels(prev => { const n = [...prev]; n[index].isBettingNext = false; return n; });
+                        }
+                    }
+                } else if (gameState === 'crashed') {
+                    if (!panel.isBettingNext) {
+                        if(balance >= panel.betAmount) {
+                            playSound('click');
+                            setPanels(prev => { const n = [...prev]; n[index].isBettingNext = true; return n; });
+                        } else { playSound('popup'); setShowDepositPopup(true); }
+                    } else if(panel.isBettingNext){
+                         playSound('click');
+                         setPanels(prev => { const n = [...prev]; n[index].isBettingNext = false; return n; });
+                    }
+                }
+            };
+
+            const updateBetAmount = (index, val) => {
+                playSound('click');
+                setPanels(prev => {
+                    const n = [...prev];
+                    n[index].betAmount = Math.max(1, n[index].betAmount + val);
+                    return n;
+                });
+            };
+
+            const setDirectBetAmount = (index, val) => {
+                playSound('click');
+                setPanels(prev => { const n = [...prev]; n[index].betAmount = val; return n; });
+            };
+
+            const toggleAutoSet = (index, field) => {
+                playSound('click');
+                setPanels(prev => { const n = [...prev]; n[index][field] = !n[index][field]; return n; });
+            };
+
+            const updateAutoMult = (index, val) => {
+                setPanels(prev => {
+                    const n = [...prev];
+                    n[index].autoCashOutVal = parseFloat(val) || 1.01;
+                    return n;
+                });
+            };
+
+            const toggleMusic = () => {
+                playSound('click');
+                const bgm = document.getElementById('bgm');
+                if(musicUIEnabled) { bgm.pause(); setMusicUIEnabled(false); }
+                else { bgm.play().catch(e=>console.log(e)); setMusicUIEnabled(true); }
+            };
+
+            const toggleSound = () => {
+                window.soundEnabled = !soundUIEnabled;
+                setSoundUIEnabled(!soundUIEnabled);
+            };
+
+            const exitGame = () => {
+                playSound('click');
+                window.location.href = '/';
+            };
+
+            const totalWinAmt = fakePlayers.reduce((sum, p) => sum + (p.winAmount || 0), 0) + panels.filter(p=>p.cashedOut).reduce((sum, p) => sum + p.winAmount, 0);
+
+            return (
+                <div className="app-container flex flex-col font-sans text-sm">
+                    {/* BGM Audio */}
+                    <audio id="bgm" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop></audio>
+
+                    {/* Simple Top Header & Win Popup */}
+                    <div className="bg-[#FFC107] p-3 flex items-center justify-center relative shadow-md z-30 h-12 shrink-0">
+                        <svg onClick={() => { playSound('click'); window.location.href = '/'; }} className="absolute left-4 w-5 h-5 text-white/50 cursor-pointer" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        
+                        <AnimatePresence>
+                            {winNotif ? (
+                                <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} 
+                                    className="absolute bg-green-600 text-white font-black px-6 py-1 rounded-full shadow-lg border border-white/40 text-sm whitespace-nowrap">
+                                    Win ₹{winNotif.toFixed(2)}
+                                </motion.div>
+                            ) : (
+                                <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white/80 font-black text-xl tracking-wide">INR CLUB</motion.h1>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <div className="bg-panelDark p-2 px-3 flex justify-between items-center border-b border-gray-800 shrink-0 z-20">
+                        <div className="text-aviatorRed font-black italic text-xl tracking-tighter" style={{fontFamily: "'Inter', sans-serif"}}>INR CLUB</div>
+                        <div className="flex items-center gap-3">
+                            <div className="text-btnGreen font-black text-base">{balance.toFixed(2)} INR</div>
+                            <button className="text-gray-400 hover:text-white" onClick={() => { playSound('click'); setIsMenuOpen(true); }}><Icons.Menu /></button>
+                        </div>
+                    </div>
+
+                    {/* History Strip */}
+                    <div className="relative z-20 bg-bgDark border-b border-gray-900 shrink-0">
+                        <div className="flex items-center gap-2 px-2 py-1 overflow-x-hidden whitespace-nowrap pr-10">
+                            {history.slice(0, 10).map((mult, idx) => (
+                                <span key={idx} className={`font-mono font-bold text-[11px] ${getMultiplierColorClass(mult)} bg-panelLight/60 px-2 py-0.5 rounded-full border border-gray-700/50 inline-block`}>
+                                    {mult.toFixed(2)}x
+                                </span>
+                            ))}
+                        </div>
+                        <div className="absolute right-0 top-0 h-full bg-bgDark px-1 flex items-center shadow-[-5px_0_10px_rgba(10,10,10,1)]">
+                            <button onClick={() => { playSound('click'); setIsHistoryExpanded(!isHistoryExpanded); }} className="bg-panelLight rounded-full p-1 border border-gray-700/50 text-gray-400 hover:text-white transition-colors">
+                                <Icons.History />
+                            </button>
+                        </div>
+
+                        <AnimatePresence>
+                            {isHistoryExpanded && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="absolute top-full left-0 w-full bg-panelDark border-b border-gray-800 p-2 grid grid-cols-6 gap-1.5 shadow-2xl z-50 overflow-hidden">
+                                    <div className="col-span-6 flex justify-between items-center mb-1">
+                                        <span className="text-xs text-gray-400 font-bold">Round History</span>
+                                        <button onClick={() => { playSound('click'); setIsHistoryExpanded(false); }} className="text-gray-500 hover:text-white text-lg leading-none">&times;</button>
+                                    </div>
+                                    {history.map((mult, idx) => (
+                                        <span key={idx} className={`font-mono font-bold text-[10px] text-center ${getMultiplierColorClass(mult)} bg-panelLight px-1 py-0.5 rounded border border-gray-700/50`}>
+                                            {mult.toFixed(2)}x
+                                        </span>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* FULL SCROLLABLE AREA */}
+                    <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col pb-8 z-0">
+                        {/* Game Animation Area */}
+                        <div className={`h-64 m-2 rounded-2xl sunburst-bg relative border border-gray-700 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] overflow-hidden shrink-0 ${bgColorClass}`}>
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                <defs>
+                                    <linearGradient id="redTrail" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#E41C38" stopOpacity="0.6"/>
+                                        <stop offset="100%" stopColor="#E41C38" stopOpacity="0.0"/>
+                                    </linearGradient>
+                                </defs>
+                                {(gameState === 'flying' || gameState === 'crashed') && (
+                                    <>
+                                        <path d={`M 0,100 Q 20,100 ${planePos.x},${planePos.y} L ${planePos.x},100 L 0,100 Z`} fill="url(#redTrail)" />
+                                        <path d={`M 0,100 Q 20,100 ${planePos.x},${planePos.y}`} stroke="#E41C38" strokeWidth="2" fill="none" vectorEffect="non-scaling-stroke" />
+                                    </>
+                                )}
+                            </svg>
+
+                            {parachutes.map(p => (
+                                <div key={p.id} className="parachute-anim" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
+                                    <ParachuteIcon avatar={p.avatar} />
+                                </div>
+                            ))}
+
+                            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
+                                {gameState === 'waiting' && (
+                                    <div className="flex flex-col items-center">
+                                        <div className="relative mb-4">
+                                            <svg className="w-16 h-16 text-aviatorRed" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+                                            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                                                <svg className="w-8 h-8 text-white/50 loading-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="22"/></svg>
+                                            </div>
+                                        </div>
+                                        <div className="text-xl font-bold tracking-widest text-white/90 animate-pulse">WAITING FOR NEXT ROUND</div>
+                                        <div className="w-48 h-2 bg-panelDark rounded-full mt-3 overflow-hidden border border-gray-700 shadow-inner">
+                                            <div className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-100 ease-linear shadow-[0_0_10px_red]" style={{width: `${(countdown/5)*100}%`}}></div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {gameState === 'flying' && (
+                                    <h2 className="text-[5rem] font-black font-mono leading-none tracking-tighter" style={{ textShadow: '0 4px 10px rgba(0,0,0,0.8)', color: getMultiplierColorClass(currentMultiplier).replace('text-[', '').replace(']', '') || 'white' }}>
+                                        {currentMultiplier.toFixed(2)}x
+                                    </h2>
+                                )}
+
+                                {gameState === 'crashed' && (
+                                    <div className="text-center mt-[-20px]">
+                                        <div className="text-white text-lg font-bold tracking-widest mb-1 uppercase">Flew Away!</div>
+                                        <h2 className="text-[5rem] font-black font-mono leading-none tracking-tighter text-aviatorRed" style={{ textShadow: '0 4px 10px rgba(0,0,0,0.8)' }}>
+                                            {crashMultiplier.toFixed(2)}x
+                                        </h2>
+                                    </div>
+                                )}
+                            </div>
+
+                            {(gameState === 'flying' || gameState === 'crashed') && (
+                                <div className={`absolute -ml-[30px] -mt-[15px] z-20 ${gameState === 'crashed' ? 'plane-crashed' : ''}`} 
+                                     style={{ left: `${planePos.x}%`, top: `${planePos.y}%` }}>
+                                    <PlaneIcon />
+                                </div>
+                            )}
+
+                            <div className="absolute bottom-2 right-2 bg-black/60 rounded-full px-3 py-1 text-xs font-bold flex items-center gap-2 border border-white/10 z-20 shadow-md">
+                                <div className="flex -space-x-2">
+                                    {liveAvatars.map((ava, i) => <img key={i} src={ava} className="w-4 h-4 rounded-full bg-gray-600 border border-black shadow"/>)}
+                                </div>
+                                <span className="text-gray-200">{displayFakeCount}</span>
+                            </div>
+                        </div>
+
+                        {/* Betting Controls Area */}
+                        <div className="px-2 space-y-1.5">
+                            {panels.map((panel, idx) => {
+                                let btnBg = 'bg-btnGreen hover:bg-green-600';
+                                let btnText = 'Bet';
+                                let subText = `${panel.betAmount.toFixed(2)} INR`;
+                                let isCancel = false;
+                                
+                                if ((gameState === 'waiting' || gameState === 'crashed') && panel.isBettingNext) {
+                                    btnBg = 'bg-btnRed hover:bg-red-700';
+                                    btnText = 'Cancel';
+                                    subText = 'Waiting for next round';
+                                    isCancel = true;
+                                } else if (gameState === 'flying') {
+                                    if (panel.inFlight && !panel.cashedOut) {
+                                        btnBg = 'bg-[#E67E22] hover:bg-[#D35400]'; 
+                                        btnText = 'Cash Out';
+                                        subText = `${(panel.betAmount * currentMultiplier).toFixed(2)} INR`;
+                                    } else if (panel.isBettingNext) {
+                                        btnBg = 'bg-btnRed hover:bg-red-700';
+                                        btnText = 'Cancel';
+                                        subText = 'Waiting for next round';
+                                        isCancel = true;
+                                    }
+                                }
+
+                                return (
+                                    <div key={panel.id} className="bg-[#1A1A1A] rounded-2xl p-2.5 border border-gray-800 shadow-md flex flex-col gap-2 relative">
+                                        <div className="flex justify-center mb-1 relative">
+                                            <div className="bg-bgDark rounded-full p-0.5 flex w-44 text-[11px] font-bold text-gray-400 border border-gray-800">
+                                                <button onClick={()=>{playSound('click'); setPanels(p => { const n=[...p]; n[idx].mode='bet'; return n; })}} className={`flex-1 rounded-full py-1.5 transition-colors ${panel.mode === 'bet' ? 'bg-panelLight text-white shadow-sm' : 'hover:text-white'}`}>Bet</button>
+                                                <button onClick={()=>{playSound('click'); setPanels(p => { const n=[...p]; n[idx].mode='auto'; return n; })}} className={`flex-1 rounded-full py-1.5 transition-colors ${panel.mode === 'auto' ? 'bg-panelLight text-white shadow-sm' : 'hover:text-white'}`}>Auto</button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 flex flex-col gap-1.5">
+                                                <div className="flex items-center justify-between bg-bgDark rounded-xl p-1 border border-gray-700">
+                                                    <button onClick={()=>updateBetAmount(idx, -1)} disabled={panel.inFlight || panel.isBettingNext} className="w-8 h-8 rounded-full bg-panelLight flex items-center justify-center hover:bg-gray-600 text-gray-300 disabled:opacity-50 transition-colors"><Icons.Minus/></button>
+                                                    <input type="number" value={panel.betAmount} onChange={(e)=>setDirectBetAmount(idx, Number(e.target.value))} disabled={panel.inFlight || panel.isBettingNext} className="w-16 bg-transparent text-center font-bold outline-none text-white font-mono text-base disabled:opacity-80" />
+                                                    <button onClick={()=>updateBetAmount(idx, 1)} disabled={panel.inFlight || panel.isBettingNext} className="w-8 h-8 rounded-full bg-panelLight flex items-center justify-center hover:bg-gray-600 text-gray-300 disabled:opacity-50 transition-colors"><Icons.Plus/></button>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-1 text-[11px] font-bold text-gray-400">
+                                                    {[1, 10, 50, 100].map(amt => (
+                                                        <button key={amt} onClick={()=>setDirectBetAmount(idx, amt)} disabled={panel.inFlight || panel.isBettingNext} className="bg-bgDark py-1 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 disabled:opacity-50 transition-colors">{amt}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <motion.button whileTap={{ scale: 0.95 }} onClick={()=>handleBetClick(idx)} className={`flex-[1.2] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_4px_10px_rgba(0,0,0,0.3)] border-b-[3px] border-black/30 transition-colors ${btnBg} ${isCancel ? 'py-1' : 'py-2'}`}>
+                                                <span className={`font-bold tracking-wide uppercase ${isCancel ? 'text-xl' : 'text-[22px]'}`}>{btnText}</span>
+                                                <span className={`font-bold ${isCancel ? 'text-[10px] opacity-80' : 'text-sm'}`}>{subText}</span>
+                                            </motion.button>
+                                        </div>
+
+                                        {panel.mode === 'auto' && (
+                                            <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 px-1 mt-1 border-t border-gray-800 pt-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span>Auto bet</span>
+                                                    <div onClick={() => toggleAutoSet(idx, 'autoBet')} className={`w-9 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${panel.autoBet ? 'bg-btnGreen' : 'bg-gray-600'}`}>
+                                                        <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${panel.autoBet ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span>Auto Cash Out</span>
+                                                    <div onClick={() => toggleAutoSet(idx, 'autoCashOut')} className={`w-9 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${panel.autoCashOut ? 'bg-btnGreen' : 'bg-gray-600'}`}>
+                                                        <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${panel.autoCashOut ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                                    </div>
+                                                    <div className="bg-bgDark px-2 py-1 rounded-full border border-gray-700 flex items-center ml-1">
+                                                        <input type="number" step="0.01" value={panel.autoCashOutVal} onChange={(e)=>updateAutoMult(idx, e.target.value)} className={`w-8 bg-transparent outline-none text-right font-mono ${panel.autoCashOut ? 'text-white' : 'text-gray-500'}`} disabled={!panel.autoCashOut} />
+                                                        <span className={`ml-1 ${panel.autoCashOut ? 'text-white' : 'text-gray-500'}`}>x</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            
+                            {/* Live Bets Leaderboard */}
+                            <div className="bg-panelDark rounded-xl mt-2 overflow-hidden border border-gray-800 shadow-md">
+                                <div className="flex bg-[#121212] text-xs font-bold text-gray-500 p-1 rounded-t-xl">
+                                    <button className="flex-1 bg-panelLight text-white rounded-full py-1.5 shadow-sm border border-gray-700">All Bets</button>
+                                    <button className="flex-1 py-1.5 hover:text-white transition-colors">Previous</button>
+                                    <button className="flex-1 py-1.5 hover:text-white transition-colors">Top</button>
+                                </div>
+                                
+                                <div className="p-3">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="flex flex-col">
+                                            <div className="flex -space-x-1.5 mb-1">
+                                                {liveAvatars.map((ava, i) => <img key={i} src={ava} className="w-5 h-5 rounded-full bg-gray-600 border border-black"/>)}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-gray-500">{displayFakeCount} Bets</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-base font-black text-white leading-tight">{totalWinAmt.toFixed(2)}</div>
+                                            <div className="text-[10px] font-bold text-gray-500">Total win INR</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex text-[10px] text-gray-600 font-bold mb-1.5 px-2">
+                                        <div className="w-2/5">Player</div><div className="w-1/5 text-center">Bet INR</div><div className="w-1/5 text-center">X</div><div className="w-1/5 text-right">Win INR</div>
+                                    </div>
+                                    <div className="space-y-0.5 max-h-[300px] overflow-y-auto pr-1">
+                                        {fakePlayers.map(p => (
+                                            <div key={p.id} className={`flex items-center text-[11px] font-bold py-1.5 px-2 rounded-lg border border-transparent transition-colors ${p.cashedOut ? 'bg-green-900/20 border-green-900/30' : 'bg-black/30'}`}>
+                                                <div className="w-2/5 flex items-center gap-2">
+                                                    <img src={p.avatar} className="w-4 h-4 rounded-full bg-gray-700" />
+                                                    <span className="text-gray-400 truncate pr-1">{p.name}</span>
+                                                </div>
+                                                <div className="w-1/5 text-center font-mono text-gray-300">{p.bet.toFixed(2)}</div>
+                                                <div className={`w-1/5 text-center font-mono ${p.cashedOut ? getMultiplierColorClass(p.target) : 'text-gray-600'}`}>
+                                                    {p.cashedOut ? `${p.target.toFixed(2)}x` : '-'}
+                                                </div>
+                                                <div className="w-1/5 text-right font-mono text-white">
+                                                    {p.cashedOut ? p.winAmount.toFixed(2) : ''}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* MENU DRAWER */}
+                    <AnimatePresence>
+                        {isMenuOpen && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 bg-black/60 flex justify-end" onClick={() => setIsMenuOpen(false)}>
+                                <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="w-64 bg-panelDark h-full border-l border-gray-800 shadow-2xl p-4 flex flex-col gap-4" onClick={e=>e.stopPropagation()}>
+                                    <div className="flex justify-between items-center border-b border-gray-700 pb-3">
+                                        <span className="text-white font-black text-lg">Settings</span>
+                                        <button onClick={()=>{playSound('click'); setIsMenuOpen(false);}} className="text-gray-400"><Icons.Close/></button>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center bg-bgDark p-3 rounded-lg border border-gray-800">
+                                        <span className="text-gray-300 font-bold">Sound Effects</span>
+                                        <div onClick={toggleSound} className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${soundUIEnabled ? 'bg-btnGreen' : 'bg-gray-600'}`}>
+                                            <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${soundUIEnabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center bg-bgDark p-3 rounded-lg border border-gray-800">
+                                        <span className="text-gray-300 font-bold">Music</span>
+                                        <div onClick={toggleMusic} className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${musicUIEnabled ? 'bg-btnGreen' : 'bg-gray-600'}`}>
+                                            <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${musicUIEnabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                        </div>
+                                    </div>
+
+                                    <button onClick={()=>{playSound('click'); setIsHowToPlayOpen(true); setIsMenuOpen(false);}} className="w-full text-left bg-bgDark p-3 rounded-lg border border-gray-800 text-gray-300 font-bold hover:text-white transition-colors">
+                                        How To Play ?
+                                    </button>
+
+                                    <button onClick={exitGame} className="w-full text-center mt-auto bg-btnRed p-3 rounded-lg text-white font-bold shadow-lg active:scale-95">
+                                        Exit Game
+                                    </button>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* HOW TO PLAY MODAL */}
+                    <AnimatePresence>
+                        {isHowToPlayOpen && (
+                            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="absolute inset-0 z-50 bg-panelDark flex flex-col">
+                                <div className="bg-[#FFC107] p-4 flex items-center justify-between shadow-md">
+                                    <h2 className="text-black font-black text-xl">How To Play</h2>
+                                    <button onClick={()=>{playSound('click'); setIsHowToPlayOpen(false);}} className="text-black font-bold text-xl">&times;</button>
+                                </div>
+                                <div className="flex-1 p-5 overflow-y-auto space-y-6 text-gray-300">
+                                    <div className="text-center">
+                                        <div className="text-5xl mb-2">✈️</div>
+                                        <h3 className="text-white font-black text-2xl">INR CLUB RULES</h3>
+                                    </div>
+                                    
+                                    <div className="bg-bgDark p-4 rounded-xl border border-gray-800">
+                                        <h4 className="text-aviatorRed font-bold text-lg mb-2">1. Place Your Bet</h4>
+                                        <p className="text-sm leading-relaxed">Choose your bet amount and click "Bet". You can place up to two bets simultaneously to maximize your winning chances.</p>
+                                    </div>
+
+                                    <div className="bg-bgDark p-4 rounded-xl border border-gray-800">
+                                        <h4 className="text-aviatorRed font-bold text-lg mb-2">2. Watch the Multiplier</h4>
+                                        <p className="text-sm leading-relaxed">The plane takes off, and the multiplier increases from 1.00x upwards. The longer it flies, the higher the multiplier.</p>
+                                    </div>
+
+                                    <div className="bg-bgDark p-4 rounded-xl border border-gray-800">
+                                        <h4 className="text-aviatorRed font-bold text-lg mb-2">3. Cash Out!</h4>
+                                        <p className="text-sm leading-relaxed">Click "Cash Out" before the plane flies away! Your win is your Bet Amount multiplied by the Cash Out multiplier. If it flies away before you cash out, you lose your bet.</p>
+                                    </div>
+
+                                    <div className="bg-bgDark p-4 rounded-xl border border-gray-800">
+                                        <h4 className="text-white font-bold text-lg mb-2">Auto Features</h4>
+                                        <ul className="list-disc pl-5 space-y-2 text-sm">
+                                            <li><strong className="text-btnGreen">Auto Bet:</strong> Automatically places a bet of the set amount at the start of each round.</li>
+                                            <li><strong className="text-btnGreen">Auto Cash Out:</strong> Set a target multiplier. The system will automatically cash you out exactly at that multiplier if the plane reaches it.</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <p className="text-center text-xs text-gray-500 font-bold py-4">Provably Fair System Active. RTP 97%.</p>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* DEPOSIT POPUP */}
+                    <AnimatePresence>
+                        {showDepositPopup && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                                <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-panelDark border border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.3)] rounded-3xl p-6 w-full max-w-[320px] flex flex-col items-center text-center relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-300 to-yellow-600"></div>
+                                    <div className="text-6xl mb-2 drop-shadow-lg">💸</div>
+                                    <h2 className="text-2xl font-black text-yellow-500 mb-1">INSUFFICIENT FUNDS!</h2>
+                                    <p className="text-gray-300 text-xs mb-6 font-bold">Deposit now to get up to 500% Welcome Bonus and keep flying high in Aviator!</p>
+                                    <button onClick={() => { playSound('click'); window.location.href = '/deposit'; }} className="w-full py-3.5 bg-gradient-to-r from-green-500 to-green-600 rounded-xl font-black tracking-widest text-white text-lg shadow-[0_5px_15px_rgba(40,167,69,0.5)] active:scale-95 transition-transform">
+                                        DEPOSIT NOW
+                                    </button>
+                                    <button onClick={() => { playSound('click'); setShowDepositPopup(false); }} className="mt-4 text-gray-500 text-xs font-bold underline hover:text-gray-300">Maybe Later</button>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AviatorApp />);
+    </script>
+</body>
+</html>

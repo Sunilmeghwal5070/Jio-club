@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../store';
 import { formatCurrency } from '../utils';
 import { ArrowLeft, Copy } from 'lucide-react';
+import { rtdb } from '../firebase';
+import { ref, update } from 'firebase/database';
 
 export function DepositPayment() {
-  const { navigate, goBack, pendingDepositAmount, user, setUser, addTransaction, addBonusRecord, showToast, sysConfig } = useApp();
+  const { navigate, goBack, pendingDepositAmount, user, setUser, addTransaction, addBonusRecord, showToast, sysConfig, triggerSystemPopup } = useApp();
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
   const [utr, setUtr] = useState('');
 
@@ -38,7 +40,7 @@ export function DepositPayment() {
   };
 
   const getUpiUrl = (scheme: string = 'upi') => {
-    const tn = encodeURIComponent(`Jio club - ${user.uid}`);
+    const tn = encodeURIComponent(`Jio Club - ID: ${user.uid}`);
     return `${scheme}://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${pendingDepositAmount}&cu=INR&tn=${tn}`;
   };
 
@@ -65,7 +67,7 @@ export function DepositPayment() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       
       if (!isAppOpened) {
-        showToast(`${appName} might not be installed on your phone. Please use another UPI app or scan the QR Code.`);
+        triggerSystemPopup('App Not Installed', `${appName} is not installed on your phone. Please install it or use another payment method. Alternatively, you can scan the QR code.`);
       }
     }, 2000);
   };
@@ -107,11 +109,21 @@ export function DepositPayment() {
     });
 
     // Update user balance
+    const newBalance = user.totalBalance + totalAmt;
+    const newTotalDeposit = (user.totalDeposit || 0) + depositAmt;
+    
     setUser({
       ...user,
-      totalBalance: user.totalBalance + totalAmt,
-      totalDeposit: (user.totalDeposit || 0) + depositAmt
+      totalBalance: newBalance,
+      totalDeposit: newTotalDeposit
     });
+    
+    if (user.phone) {
+      update(ref(rtdb, `users/${user.phone}`), {
+        balance: newBalance,
+        totalDeposit: newTotalDeposit
+      });
+    }
     
     if (bonusAmt > 0) {
       addBonusRecord('Deposit Bonus', bonusAmt);

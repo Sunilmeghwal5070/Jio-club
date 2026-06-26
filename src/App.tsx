@@ -42,6 +42,9 @@ import { DepositPayment } from './pages/DepositPayment';
 import { SystemPopup } from './components/SystemPopup';
 import { NameRequirementModal } from './components/NameRequirementModal';
 
+import { GamePlaceholder } from './pages/GamePlaceholder';
+import { ChickenRoad } from './pages/ChickenRoad';
+
 function MainLayout() {
   const { currentRoute, isAuthenticated, showCaptcha, showFirstDeposit, showNamePopup } = useApp();
 
@@ -55,6 +58,15 @@ function MainLayout() {
       case 'home': return <Home />;
       case 'depositPayment': return <DepositPayment />;
       case 'wingo': return <Wingo />;
+      case 'aviator': return <GamePlaceholder title="Aviator" />;
+      case 'trx': return <GamePlaceholder title="TRX Hash" />;
+      case '5d': return <GamePlaceholder title="5D Lottery" />;
+      case 'k3': return <GamePlaceholder title="K3 Lottery" />;
+      case 'vortex': return <GamePlaceholder title="Vortex" />;
+      case 'chicken': return <ChickenRoad />;
+      case 'mines': return <GamePlaceholder title="Mines" />;
+      case 'andar': return <GamePlaceholder title="Andar Bahar" />;
+      case 'crash': return <GamePlaceholder title="Crash" />;
       case 'wallet': return <WalletContainer />;
       case 'account': return <Account />;
       case 'activity': return <Activity />;

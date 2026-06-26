@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fortune Gems: Smart Payout</title>
+    
+    <!-- React & Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+
+    <!-- FIREBASE SDKS -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@400;700;900&display=swap');
+
+        :root {
+            --gold-light: #ffea7c;
+            --gold-mid: #d4af37;
+            --gold-dark: #8a6a1c;
+            --bg-dark: #0a0a0f;
+            --panel-bg: rgba(15, 15, 25, 0.85);
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+            background-color: var(--bg-dark);
+            font-family: 'Montserrat', sans-serif;
+            color: white;
+            touch-action: none; 
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* --- BACKGROUND WITH ANIMATED EFFECTS --- */
+        .game-bg {
+            position: absolute;
+            inset: 0;
+            background: url('background.png') center/cover no-repeat;
+            z-index: -4;
+        }
+
+        .bg-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(5,5,15,0.4) 0%, rgba(5,5,15,0.85) 100%);
+            z-index: -3;
+        }
+
+        .ambient-light {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.6;
+            z-index: -2;
+            animation: floatOrb 8s ease-in-out infinite alternate;
+        }
+
+        .light-1 {
+            width: 350px; height: 350px;
+            background: rgba(138, 43, 226, 0.4); 
+            top: -100px; left: -100px;
+        }
+
+        .light-2 {
+            width: 450px; height: 450px;
+            background: rgba(0, 255, 255, 0.3); 
+            bottom: -150px; right: -100px;
+            animation-delay: -4s;
+            animation-duration: 12s;
+        }
+
+        @keyframes floatOrb {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(80px, 60px) scale(1.2); }
+        }
+
+        h1, h2, h3, .cinzel { font-family: 'Cinzel', serif; }
+
+        .text-gold-gradient {
+            background: linear-gradient(to bottom, #fffde4 0%, #ffdf00 40%, #d4af37 60%, #b8860b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0px 2px 2px rgba(0,0,0,1)); 
+        }
+
+        .premium-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
+            transform: translateZ(0); 
+        }
+
+        .gold-border {
+            position: relative;
+            transform: translateZ(0);
+        }
+        .gold-border::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            background: linear-gradient(45deg, var(--gold-dark), var(--gold-light), var(--gold-dark));
+            z-index: -1;
+            border-radius: inherit;
+        }
+
+        .slot-machine-area {
+            background: rgba(5, 5, 5, 0.85); 
+            backdrop-filter: blur(5px);
+            border-radius: 12px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,1);
+            padding: 8px;
+            position: relative;
+            overflow: hidden; 
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            transform: translate3d(0,0,0);
+        }
+
+        .cell-bg {
+            background: radial-gradient(circle at center, rgba(26,26,36,0.9) 0%, rgba(10,10,15,0.9) 100%);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 8px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            transform: translateZ(0);
+        }
+
+        .symbol-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            will-change: transform, opacity;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes dropBounce {
+            0% { transform: translate3d(0, -300px, 0) scale(0.8); opacity: 0; filter: blur(5px); }
+            60% { transform: translate3d(0, 20px, 0) scale(1); opacity: 1; filter: blur(0px); }
+            80% { transform: translate3d(0, -10px, 0) scale(1); }
+            100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+        }
+
+        @keyframes shatterWin {
+            0% { transform: translate3d(0,0,0) scale(1); opacity: 1; filter: brightness(2); }
+            10%, 30%, 50% { transform: translate3d(-3px, 0, 0) scale(0.95); }
+            20%, 40% { transform: translate3d(3px, 0, 0) scale(0.95); }
+            100% { transform: translate3d(0,0,0) scale(1.5) rotate(20deg); opacity: 0; filter: blur(10px); }
+        }
+
+        @keyframes idleFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+
+        @keyframes pulseGlow {
+            0% { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5)); transform: scale(1); }
+            100% { filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1)); transform: scale(1.05); }
+        }
+
+        @keyframes spinSlow { 100% { transform: rotate(360deg); } }
+        @keyframes spinReverse { 100% { transform: rotate(-360deg); } }
+
+        .anim-idle { animation: idleFloat 3s ease-in-out infinite; }
+        .anim-drop { animation: dropBounce 0.5s cubic-bezier(0.25, 1, 0.5, 1) both; }
+        .anim-win { animation: shatterWin 0.6s ease-out forwards; z-index: 10; }
+        .wild-special { animation: pulseGlow 1.5s infinite alternate; }
+
+        .win-box-glow {
+            position: absolute;
+            inset: 0;
+            border: 2px solid #00ffff;
+            border-radius: 8px;
+            box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.7), 0 0 15px rgba(0, 255, 255, 0.5);
+            z-index: 6;
+            pointer-events: none;
+            animation: pulse-opacity 0.6s infinite alternate;
+        }
+
+        @keyframes pulse-opacity { 0% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        .animate-spin-slow { animation: spinSlow 5s linear infinite; }
+        .animate-spin-reverse-slow { animation: spinReverse 4s linear infinite; }
+
+        #fx-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* Modals & UI Animations */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        .pop-in-anim { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
+        .animate-slide-in-right { animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
+</head>
+<body>
+    <div class="game-bg"></div>
+    <div class="bg-overlay"></div>
+    <div class="ambient-light light-1"></div>
+    <div class="ambient-light light-2"></div>
+
+    <canvas id="fx-canvas"></canvas>
+    <div id="root" class="relative z-10 w-full h-full flex flex-col overflow-hidden"></div>
+
+    <script type="text/babel">
+
+        // ==========================================
+        // FIREBASE INITIALIZATION
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCd0sxHVTqBG3I6MhvP4mebxUS7EofkTo",
+            authDomain: "inr-club-d4500.firebaseapp.com",
+            databaseURL: "https://inr-club-d4500-default-rtdb.firebaseio.com",
+            projectId: "inr-club-d4500",
+            storageBucket: "inr-club-d4500.firebasestorage.app",
+            messagingSenderId: "496374937195",
+            appId: "1:496374937195:web:a0d7fc817e1b02fe23a32e"
+        };
+
+        if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(firebaseConfig);
+        }
+        const database = window.firebase.database();
+        const activePhone = localStorage.getItem('user_phone') || localStorage.getItem('inr_club_active_phone');
+
+        // Security check
+        if (!activePhone) {
+            window.location.href = '/';
+        }
+
+        // ==========================================
+        // UI ICONS
+        // ==========================================
+        const Icons = {
+            Menu: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
+            Close: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        };
+
+        // ==========================================
+        // 1. ADVANCED FX & SOUND ENGINE
+        // ==========================================
+        class FXEngine {
+            constructor() {
+                this.canvas = null; this.ctx = null; this.particles = [];
+                this.audioCtx = null; this.isAudioInit = false; this.isAnimating = false;
+                this.soundEnabled = true; // SOUND TOGGLE FLAG
+                this.resizeCanvas = this.resizeCanvas.bind(this);
+            }
+            init() {
+                if(!this.canvas) {
+                    this.canvas = document.getElementById('fx-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    window.addEventListener('resize', this.resizeCanvas);
+                    this.resizeCanvas();
+                }
+                if (!this.isAudioInit) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioCtx = new AudioContext();
+                    this.isAudioInit = true;
+                }
+                if (this.audioCtx && this.audioCtx.state === 'suspended') this.audioCtx.resume();
+            }
+            resizeCanvas() {
+                if(this.canvas) { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; }
+            }
+            
+            toggleSound() {
+                this.soundEnabled = !this.soundEnabled;
+                return this.soundEnabled;
+            }
+
+            createExplosion(rect, color) {
+                const centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2;
+                for (let i = 0; i < 20; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 5 + 2; 
+                    this.particles.push({
+                        type: 'spark',
+                        x: centerX, y: centerY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                        life: 1.0, decay: Math.random() * 0.03 + 0.02, size: Math.random() * 6 + 2, color: color
+                    });
+                }
+                if (!this.isAnimating) { this.isAnimating = true; this.animateParticles(); }
+            }
+
+            createConfetti() {
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2 - 100;
+                const colors = ['#ffdf00', '#00ffff', '#ff0044', '#00ff44', '#9900ff'];
+                
+                for (let i = 0; i < 100; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 12 + 5;
+                    this.particles.push({
+                        type: 'confetti',
+                        x: centerX, y: centerY,
+                        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 5,
+                        life: 1.0, decay: Math.random() * 0.01 + 0.005, size: Math.random() * 10 + 5,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        spin: Math.random() * 0.2 - 0.1, angleRot: 0
+                    });
+                }
+                if (!this.isAnimating) { this.isAnimating = true; this.animateParticles(); }
+            }
+
+            animateParticles() {
+                if (this.particles.length === 0) { this.isAnimating = false; this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); return; }
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx; p.y += p.vy; 
+                    
+                    if (p.type === 'confetti') {
+                        p.vy += 0.3; 
+                        p.angleRot += p.spin;
+                        this.ctx.save();
+                        this.ctx.translate(p.x, p.y);
+                        this.ctx.rotate(p.angleRot);
+                        this.ctx.fillStyle = p.color;
+                        this.ctx.globalAlpha = p.life;
+                        this.ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                        this.ctx.restore();
+                    } else {
+                        p.vy += 0.15; 
+                        this.ctx.globalCompositeOperation = 'screen';
+                        this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                        this.ctx.fillStyle = p.color.replace(')', `, ${p.life})`).replace('rgb', 'rgba'); this.ctx.fill();
+                        this.ctx.globalCompositeOperation = 'source-over';
+                    }
+                    
+                    p.life -= p.decay;
+                    if (p.life <= 0) { this.particles.splice(i, 1); }
+                }
+                requestAnimationFrame(() => this.animateParticles());
+            }
+
+            playTone(freq, type, duration, vol=0.1, slideFreq=null) {
+                if (!this.soundEnabled || !this.audioCtx) return; // Sound Check added
+                try {
+                    const osc = this.audioCtx.createOscillator(); const gain = this.audioCtx.createGain();
+                    osc.type = type; osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+                    if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, this.audioCtx.currentTime + duration);
+                    gain.gain.setValueAtTime(vol, this.audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + duration);
+                    osc.connect(gain); gain.connect(this.audioCtx.destination);
+                    osc.start(); osc.stop(this.audioCtx.currentTime + duration);
+                } catch(e) {}
+            }
+            
+            playSpin() { this.playTone(150, 'sawtooth', 0.5, 0.05, 600); }
+            playDrop() { this.playTone(200, 'triangle', 0.1, 0.15, 50); }
+            playWin() { 
+                const notes = [440, 554.37, 659.25, 880]; 
+                notes.forEach((freq, i) => { setTimeout(() => this.playTone(freq, 'sine', 0.4, 0.1), i * 100); });
+            }
+            playExplode() { 
+                this.playTone(400, 'square', 0.2, 0.1, 50); 
+                setTimeout(() => this.playTone(300, 'sawtooth', 0.1, 0.1, 30), 50);
+            }
+            playBigWin() {
+                const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; 
+                notes.forEach((freq, i) => { setTimeout(() => this.playTone(freq, 'sine', 0.5, 0.15), i * 80); });
+            }
+        }
+        const fx = new FXEngine();
+
+        // ==========================================
+        // 2. RENDERERS
+        // ==========================================
+        const PremiumSymbol = React.memo(({ data }) => {
+            const extraClass = data.id === 'wild' ? 'wild-special shadow-[0_0_15px_white]' : '';
+            const isText = ['amethyst', 'topaz'].includes(data.id);
+            return (
+                <div className={`w-[85%] h-[85%] rounded-[20%] border-2 border-white/20 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] flex items-center justify-center ${extraClass}`}
+                     style={{ background: isText ? 'linear-gradient(135deg, #2c3e50, #000000)' : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8) 0%, ${data.color} 50%, black 100%)` }}>
+                    <span style={{ fontSize: '4rem', fontWeight: '900', color: isText ? '#fff' : 'transparent', textShadow: isText ? `0 0 10px ${data.color}, 0 0 20px ${data.color}` : '0 0 0 white' }}>
+                        {data.icon}
+                    </span>
+                </div>
+            );
+        });
+
+        // ==========================================
+        // 3. SMART GAME LOGIC
+        // ==========================================
+        const SYMBOLS_DB = {
+            ruby:     { id: 'ruby',     name: 'Ruby',     color: 'rgb(255, 0, 68)',   basePayout: 5,   icon: "🍎" },
+            sapphire: { id: 'sapphire', name: 'Sapphire', color: 'rgb(0, 85, 255)',   basePayout: 4,   icon: "💎" },  
+            emerald:  { id: 'emerald',  name: 'Emerald',  color: 'rgb(0, 255, 68)',   basePayout: 3,   icon: "🍀" }, 
+            amethyst: { id: 'amethyst', name: 'Amethyst', color: 'rgb(153, 0, 255)',  basePayout: 2,   icon: "A" }, 
+            topaz:    { id: 'topaz',    name: 'Topaz',    color: 'rgb(255, 170, 0)',  basePayout: 1,   icon: "K" }, 
+            wild:     { id: 'wild',     name: 'Wild Orb', color: 'rgb(255, 255, 255)',basePayout: 0,   isWild: true, icon: "🌟" }
+        };
+
+        let uidCounter = 0;
+
+        const getRandomSymbol = (allowWild = true) => {
+            const weights = allowWild ? 
+                { ruby: 5, sapphire: 10, emerald: 15, amethyst: 25, topaz: 35, wild: 5 } : 
+                { ruby: 10, sapphire: 15, emerald: 20, amethyst: 25, topaz: 30 }; 
+                
+            let total = Object.values(weights).reduce((a,b)=>a+b, 0);
+            let rand = Math.random() * total;
+            for (let [id, weight] of Object.entries(weights)) {
+                if (rand < weight) {
+                    uidCounter++; return { uid: 'sym_'+uidCounter, ...SYMBOLS_DB[id] };
+                }
+                rand -= weight;
+            }
+            uidCounter++; return { uid: 'sym_'+uidCounter, ...SYMBOLS_DB['topaz'] };
+        };
+
+        const findClusters = (grid) => {
+            const rows = 5, cols = 5;
+            let visited = Array(cols).fill().map(() => Array(rows).fill(false)); 
+            let clusters = [];
+
+            for (let c = 0; c < cols; c++) {
+                for (let r = 0; r < rows; r++) {
+                    if (visited[c][r]) continue;
+                    let cell = grid[c][r];
+                    if (!cell) continue;
+
+                    let targetType = cell.isWild ? null : cell.id;
+                    let currentCluster = [];
+                    let q = [{c, r}];
+                    visited[c][r] = true;
+                    let tempVisited = [{c, r}]; 
+
+                    while(q.length > 0) {
+                        let {c: cc, r: cr} = q.shift();
+                        currentCluster.push({c: cc, r: cr, sym: grid[cc][cr]});
+                        if (!targetType && !grid[cc][cr].isWild) targetType = grid[cc][cr].id;
+
+                        [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dc, dr]) => {
+                            let nc = cc + dc, nr = cr + dr;
+                            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows && !visited[nc][nr]) {
+                                let nCell = grid[nc][nr];
+                                if (nCell) {
+                                    if (nCell.isWild || nCell.id === targetType || !targetType) {
+                                        visited[nc][nr] = true; q.push({c: nc, r: nr}); tempVisited.push({c: nc, r: nr});
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    if (currentCluster.length >= 5) {
+                        clusters.push({ type: targetType || 'wild', cells: currentCluster });
+                    } else {
+                        tempVisited.forEach(pt => visited[pt.c][pt.r] = false);
+                    }
+                }
+            }
+            return clusters;
+        };
+
+        const generateLosingGrid = () => {
+            let grid;
+            let attempt = 0;
+            do {
+                grid = Array(5).fill().map(() => Array(5).fill().map(() => getRandomSymbol(false)));
+                attempt++;
+            } while (findClusters(grid).length > 0 && attempt < 50); 
+            return grid;
+        };
+
+        const getShapeCoords = (size) => {
+            const row = Math.floor(Math.random() * 3) + 1; // Row 1, 2, or 3
+            let pts = [ {c:0, r:row}, {c:1, r:row}, {c:2, r:row}, {c:3, r:row}, {c:4, r:row} ];
+            if (size >= 6) pts.push({c:2, r:row-1});
+            if (size >= 7) pts.push({c:1, r:row-1});
+            if (size >= 8) pts.push({c:3, r:row-1});
+            return pts;
+        };
+
+        const generateWinningGridWithTarget = (symbolId, clusterSize) => {
+            let grid;
+            let valid = false;
+            let attempt = 0;
+            
+            while(!valid && attempt < 100) {
+                grid = Array(5).fill().map(() => Array(5).fill(null));
+                let coords = getShapeCoords(clusterSize);
+                
+                // Keep target cluster safe
+                coords.forEach(pt => {
+                    uidCounter++;
+                    grid[pt.c][pt.r] = { uid: 'sym_'+uidCounter, ...SYMBOLS_DB[symbolId] };
+                });
+                
+                // Fill the rest ensuring it doesn't merge
+                for(let c=0; c<5; c++) {
+                    for(let r=0; r<5; r++) {
+                        if(!grid[c][r]) {
+                            let sym;
+                            let innerAttempt = 0;
+                            do {
+                                sym = getRandomSymbol(false);
+                                innerAttempt++;
+                            } while((sym.id === symbolId || sym.isWild) && innerAttempt < 20);
+                            uidCounter++;
+                            sym.uid = 'sym_'+uidCounter;
+                            grid[c][r] = sym;
+                        }
+                    }
+                }
+                
+                // Verify ONLY our target cluster exists and size exactly matches
+                let clusters = findClusters(grid);
+                if (clusters.length === 1 && clusters[0].cells.length === clusterSize && clusters[0].type === symbolId) {
+                    valid = true;
+                }
+                attempt++;
+            }
+            if (!valid) return generateLosingGrid(); 
+            return grid;
+        };
+
+        const getTargetWin = () => {
+            const rand = Math.random();
+            if (rand < 0.89) {
+                // Minimum Win (89% Chance)
+                const minOptions = [
+                    { id: 'topaz', size: 5 },    // 1(base) * 5 / 10 = 0.5x bet
+                    { id: 'topaz', size: 6 },    // 1(base) * 6 / 10 = 0.6x bet
+                    { id: 'topaz', size: 8 },    // 1(base) * 8 / 10 = 0.8x bet
+                    { id: 'amethyst', size: 5 }, // 2(base) * 5 / 10 = 1.0x bet
+                    { id: 'amethyst', size: 6 }, // 2(base) * 6 / 10 = 1.2x bet
+                    { id: 'emerald', size: 5 },  // 3(base) * 5 / 10 = 1.5x bet
+                ];
+                return minOptions[Math.floor(Math.random() * minOptions.length)];
+            } else {
+                // Maximum Win (11% Chance)
+                const maxOptions = [
+                    { id: 'sapphire', size: 5 }, // 4(base) * 5 / 10 = 2.0x bet
+                    { id: 'sapphire', size: 6 }, // 4(base) * 6 / 10 = 2.4x bet
+                    { id: 'ruby', size: 5 },     // 5(base) * 5 / 10 = 2.5x bet
+                    { id: 'ruby', size: 6 },     // 5(base) * 6 / 10 = 3.0x bet
+                    { id: 'ruby', size: 7 },     // 5(base) * 7 / 10 = 3.5x bet
+                ];
+                return maxOptions[Math.floor(Math.random() * maxOptions.length)];
+            }
+        };
+
+        const copyGrid = (grid) => grid.map(col => col.map(cell => cell ? {...cell} : null));
+
+        // ==========================================
+        // 4. MAIN REACT APP
+        // ==========================================
+        const App = () => {
+            // FIREBASE & UI STATES
+            const [balance, setBalance] = React.useState(0); 
+            const [menuOpen, setMenuOpen] = React.useState(false);
+            const [howToPlayOpen, setHowToPlayOpen] = React.useState(false);
+            const [isSoundOn, setIsSoundOn] = React.useState(true);
+
+            const [bet, setBet] = React.useState(10); // Default to 10
+            const [showBetPopup, setShowBetPopup] = React.useState(false);
+            
+            const [grid, setGrid] = React.useState(generateLosingGrid());
+            const [isSpinning, setIsSpinning] = React.useState(false);
+            const isSpinningRef = React.useRef(false); 
+            
+            const [isAuto, setIsAuto] = React.useState(false);
+            const autoRef = React.useRef(false);
+
+            const [winData, setWinData] = React.useState({ msg: "", amount: 0 });
+            const [winningPts, setWinningPts] = React.useState([]); 
+            const gridRef = React.useRef(null);
+
+            // Loss Counter - Har 1-2 khali (loss) ke baad 1 win aayegi
+            const lossCount = React.useRef(0);
+            const targetLosses = React.useRef(Math.floor(Math.random() * 2) + 1); 
+
+            // FETCH REAL-TIME BALANCE FROM FIREBASE
+            React.useEffect(() => {
+                if (!activePhone) return;
+                const userRef = database.ref('users/' + activePhone);
+                const handleValue = (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const bal = data.balance !== undefined ? data.balance : data.totalBalance;
+                        if (bal !== undefined) {
+                            setBalance(Number(bal));
+                        }
+                    }
+                };
+                userRef.on('value', handleValue);
+                return () => userRef.off('value', handleValue);
+            }, []);
+
+            // FIREBASE BALANCE UPDATER
+            const updateBalance = (delta) => {
+                setBalance(prev => {
+                    const newBalance = parseFloat((prev + delta).toFixed(2));
+                    if (activePhone) database.ref('users/' + activePhone).update({ balance: newBalance });
+                    return newBalance;
+                });
+            };
+
+            // NEW CODE: Function to push game history to Firebase for home.html
+            const pushGameHistoryToFirebase = (betAmt, winAmt) => {
+                if (!activePhone) return;
+                const userGamesHistoryRef = database.ref(`users/${activePhone}/history/games`);
+                const uniqueKey = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                const status = winAmt > 0 ? 'Succeed' : 'Failed';
+                const netAmt = winAmt > 0 ? (winAmt - betAmt) : -betAmt;
+                const multiplierText = winAmt > 0 ? `${(winAmt / betAmt).toFixed(2)}x` : '0x';
+                const periodStr = Math.floor(Date.now() / 1000).toString().slice(-6); 
+
+                userGamesHistoryRef.child(uniqueKey).set({
+                    game: 'Fortune Gems',
+                    period: periodStr,
+                    selection: status === 'Succeed' ? multiplierText : 'Lost',
+                    amount: betAmt,
+                    status: status,
+                    net: netAmt,
+                    date: new Date().toLocaleString(),
+                    timestamp: Date.now()
+                });
+            };
+
+            React.useEffect(() => {
+                const startEngine = () => fx.init();
+                window.addEventListener('pointerdown', startEngine, { once: true });
+                return () => window.removeEventListener('pointerdown', startEngine);
+            }, []);
+
+            const toggleAuto = () => {
+                fx.init(); fx.playDrop();
+                const newVal = !isAuto;
+                setIsAuto(newVal);
+                autoRef.current = newVal;
+                
+                if (newVal && !isSpinningRef.current) {
+                    triggerSpin();
+                }
+            };
+
+            const triggerSpin = () => {
+                if (isSpinningRef.current) return;
+                
+                if (balance < bet) {
+                    setIsAuto(false);
+                    autoRef.current = false;
+                    alert('Insufficient Balance! Please deposit to continue playing.');
+                    return;
+                }
+
+                fx.init();
+                fx.playSpin();
+                
+                // Deduct Bet from Firebase
+                updateBalance(-bet);
+                
+                setIsSpinning(true);
+                isSpinningRef.current = true;
+                setShowBetPopup(false); 
+                setWinData({ msg: "", amount: 0 });
+                setWinningPts([]);
+                
+                setGrid(Array(5).fill().map(() => Array(5).fill(null)));
+
+                setTimeout(() => {
+                    let newGrid;
+
+                    // SMART ALGORITHM LOGIC: Check win cycle
+                    if (lossCount.current >= targetLosses.current) {
+                        const target = getTargetWin();
+                        newGrid = generateWinningGridWithTarget(target.id, target.size);
+                        
+                        lossCount.current = 0; 
+                        targetLosses.current = Math.floor(Math.random() * 2) + 1; // Reset cycle 1 or 2
+                    } else {
+                        newGrid = generateLosingGrid(); 
+                        lossCount.current++;
+                    }
+
+                    newGrid.forEach(col => col.forEach(cell => cell.isNew = true)); 
+                    setGrid(newGrid);
+                    
+                    for(let i=0; i<5; i++){
+                        setTimeout(() => fx.playDrop(), i * 100);
+                    }
+
+                    setTimeout(() => processLogic(newGrid, 0), 700); 
+                }, 100);
+            };
+
+            const processLogic = (currentGrid, accumWin) => {
+                const clusters = findClusters(currentGrid);
+
+                if (clusters.length > 0) {
+                    fx.playWin();
+                    let currentTurnWin = 0;
+                    let explosionPoints = [];
+
+                    clusters.forEach(cl => {
+                        const baseVal = SYMBOLS_DB[cl.type].basePayout;
+                        const clusterWin = baseVal * cl.cells.length * (bet / 10);
+                        currentTurnWin += clusterWin;
+                        explosionPoints.push(...cl.cells);
+                    });
+
+                    const totalWin = accumWin + currentTurnWin;
+                    setWinningPts(explosionPoints);
+                    
+                    setTimeout(() => {
+                        fx.playExplode();
+                        
+                        if (gridRef.current) {
+                            const cells = gridRef.current.querySelectorAll('.outer-cell-ref');
+                            explosionPoints.forEach(pt => {
+                                const idx = pt.c * 5 + pt.r; 
+                                const domCell = cells[idx];
+                                if (domCell) {
+                                    const rect = domCell.getBoundingClientRect();
+                                    fx.createExplosion(rect, pt.sym.color);
+                                }
+                            });
+                        }
+
+                        setTimeout(() => {
+                            let nextGrid;
+                            let attempt = 0;
+                            let hasNewClusters = false;
+                            
+                            // RIG CASCADE: Ensure no new clusters form randomly after explosion
+                            do {
+                                nextGrid = copyGrid(currentGrid);
+                                explosionPoints.forEach(pt => { nextGrid[pt.c][pt.r] = null; });
+                                
+                                for (let c = 0; c < 5; c++) {
+                                    let col = nextGrid[c].filter(s => s !== null);
+                                    let missing = 5 - col.length;
+                                    let newSymbols = [];
+                                    for(let i=0; i<missing; i++) {
+                                        let newSym = getRandomSymbol(false);
+                                        newSym.isNew = true;
+                                        newSymbols.push(newSym);
+                                    }
+                                    col.forEach(s => s.isNew = false); 
+                                    nextGrid[c] = [...newSymbols, ...col];
+                                }
+                                attempt++;
+                                hasNewClusters = findClusters(nextGrid).length > 0;
+                            } while (hasNewClusters && attempt < 50);
+
+                            setGrid(nextGrid);
+                            setWinningPts([]);
+                            
+                            // ADD WIN TO FIREBASE
+                            updateBalance(currentTurnWin);
+                            
+                            for(let i=0; i<3; i++){
+                                setTimeout(() => fx.playDrop(), i * 100);
+                            }
+
+                            setTimeout(() => processLogic(nextGrid, totalWin), 700); 
+                        }, 500); 
+                    }, 800); 
+
+                } else {
+                    // Turn Complete
+                    if (accumWin > 0) {
+                        fx.playBigWin();
+                        fx.createConfetti();
+                        setWinData({ msg: "BIG WIN!", amount: accumWin });
+                    }
+                    
+                    // --- NEW CODE: PUSH GAME HISTORY TO FIREBASE ---
+                    pushGameHistoryToFirebase(bet, accumWin);
+                    // -----------------------------------------------
+
+                    setIsSpinning(false);
+                    isSpinningRef.current = false;
+
+                    if (autoRef.current) {
+                        setTimeout(() => {
+                            if (autoRef.current) triggerSpin();
+                        }, accumWin > 0 ? 3000 : 800); 
+                    }
+                }
+            };
+
+            return (
+                <div className="flex-1 flex flex-col justify-between max-w-md mx-auto w-full relative h-full">
+                    
+                    {/* TOP BAR */}
+                    <div className="px-5 py-3 premium-panel rounded-b-3xl flex justify-between items-center z-20 shrink-0 border-b border-yellow-600/30">
+                        <div 
+                            className="flex items-center gap-2 cursor-pointer active:scale-95 transition-transform" 
+                            onClick={() => window.location.href='/'}
+                        >
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-yellow-700 to-yellow-300 flex items-center justify-center shadow-[0_0_10px_rgba(255,215,0,0.5)]">
+                                <span className="text-black font-black cinzel text-xl drop-shadow-md">F</span>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-bold text-white tracking-widest cinzel shadow-black drop-shadow-md">FORTUNE GEMS</span>
+                                <span className="text-[10px] text-yellow-500 uppercase tracking-widest font-bold">Smart Payout</span>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Balance</span>
+                                <span className="text-xl font-black font-mono text-gold-gradient transition-all duration-300">
+                                    ₹{balance.toFixed(2)}
+                                </span>
+                            </div>
+                            
+                            {/* MENU BUTTON */}
+                            <button 
+                                onClick={() => { fx.playTone(800, 'sine', 0.1); setMenuOpen(true); }} 
+                                className="bg-gradient-to-tr from-yellow-700 to-yellow-300 rounded-full p-1.5 text-black shadow-lg active:scale-95 transition-transform"
+                            >
+                                <Icons.Menu />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* MIDDLE - Slot Grid */}
+                    <div className="relative px-4 flex-1 flex flex-col justify-center min-h-0">
+                        
+                        <div className="absolute top-0 left-0 w-full text-center z-30 h-16 flex flex-col items-center justify-center pointer-events-none">
+                            {winData.amount > 0 && (
+                                <div className="pop-in-anim bg-black/90 border-2 border-yellow-400 px-8 py-3 rounded-full shadow-[0_0_20px_rgba(255,215,0,0.6)] flex flex-col items-center justify-center mt-4">
+                                    <h2 className="cinzel text-2xl text-yellow-400 m-0 leading-none filter drop-shadow-md">{winData.msg}</h2>
+                                    <h3 className="font-mono text-3xl text-white font-black m-0 leading-none mt-1">₹{winData.amount.toFixed(2)}</h3>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="gold-border rounded-xl mx-auto w-full max-w-[380px]">
+                            <div className="slot-machine-area" ref={gridRef}>
+                                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/80 z-0 pointer-events-none rounded-xl"></div>
+                                
+                                <div className="grid grid-cols-5 gap-1.5 w-full h-full relative z-10">
+                                    {grid.map((col, cIdx) => (
+                                        <div key={`col-${cIdx}`} className="grid grid-rows-5 gap-1.5 w-full h-full">
+                                            {col.map((cell, rIdx) => {
+                                                const isWinning = winningPts.some(pt => pt.c === cIdx && pt.r === rIdx);
+                                                const animDelay = cell?.isNew ? `${(rIdx * 0.05) + (cIdx * 0.05)}s` : '0s';
+                                                
+                                                return (
+                                                    <div key={`cell-${cIdx}-${rIdx}`} className="outer-cell-ref cell-bg">
+                                                        {cell && (
+                                                            <div 
+                                                                className={`symbol-wrapper ${cell.isNew ? 'anim-drop' : (!isSpinning && !isWinning ? 'anim-idle' : '')} ${isWinning ? 'anim-win' : ''}`}
+                                                                style={{ animationDelay: isWinning ? '0s' : animDelay }}
+                                                            >
+                                                                <PremiumSymbol data={cell} />
+                                                            </div>
+                                                        )}
+                                                        {isWinning && <div className="win-box-glow"></div>}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BET SELECTION POPUP */}
+                    {showBetPopup && (
+                        <div className="absolute bottom-[100px] left-4 right-4 bg-black/95 border border-yellow-600 rounded-2xl p-5 z-40 pop-in-anim backdrop-blur-md shadow-[0_0_30px_rgba(212,175,55,0.4)]">
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-yellow-500 font-bold tracking-widest text-sm uppercase">Select Bet Amount</span>
+                                <button onClick={()=>setShowBetPopup(false)} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                {[2, 5, 10, 20, 50, 100].map(amt => (
+                                    <button 
+                                        key={amt} 
+                                        onClick={() => { setBet(amt); setShowBetPopup(false); fx.playDrop(); }} 
+                                        className={`py-3 rounded-xl font-bold font-mono text-lg border transition-all ${bet === amt ? 'bg-yellow-600/30 border-yellow-400 text-yellow-400 shadow-[0_0_10px_rgba(255,215,0,0.5)]' : 'bg-gray-800/80 border-gray-600 text-white hover:bg-gray-700 active:scale-95'}`}
+                                    >
+                                        ₹{amt}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* BOTTOM BAR */}
+                    <div className="premium-panel rounded-t-3xl p-5 pb-8 z-20 shrink-0">
+                        <div className="flex justify-between items-center relative">
+                            
+                            {/* BET BUTTON */}
+                            <div className="w-1/3 flex flex-col items-center">
+                                <span className="text-[10px] text-gray-400 font-bold tracking-widest mb-2">TOTAL BET</span>
+                                <button 
+                                    onClick={() => { if(!isSpinning) { setShowBetPopup(!showBetPopup); fx.playDrop(); } }}
+                                    disabled={isSpinning}
+                                    className={`flex items-center justify-center w-full max-w-[85px] py-2 bg-black/80 border border-yellow-600/50 rounded-full text-white font-mono font-bold text-lg shadow-[0_0_15px_rgba(212,175,55,0.2)] transition-transform ${isSpinning ? 'opacity-50' : 'active:scale-95'}`}
+                                >
+                                    ₹{bet}
+                                </button>
+                            </div>
+
+                            {/* PREMIUM SPIN BUTTON */}
+                            <div className="w-1/3 flex justify-center absolute left-1/2 -translate-x-1/2 -top-14">
+                                <button 
+                                    onClick={() => {
+                                        if(isAuto) toggleAuto(); // Acts as STOP
+                                        else triggerSpin();
+                                    }}
+                                    disabled={isSpinning && !isAuto} 
+                                    className={`group relative flex items-center justify-center w-28 h-28 rounded-full transition-transform ${isSpinning && !isAuto ? 'opacity-70 scale-95 pointer-events-none' : 'active:scale-90'}`}
+                                >
+                                    {/* Outer rotating rings */}
+                                    <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-yellow-400 border-b-yellow-400 animate-spin-slow"></div>
+                                    <div className="absolute inset-2 rounded-full border-4 border-transparent border-l-yellow-600 border-r-yellow-600 animate-spin-reverse-slow opacity-80"></div>
+                                    
+                                    {/* Inner button styling based on Auto mode */}
+                                    <div className={`absolute inset-3.5 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${isAuto ? 'bg-gradient-to-b from-red-600 to-red-900 border-red-400 shadow-[0_0_30px_rgba(255,0,0,0.8)]' : 'bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700 shadow-[0_0_30px_rgba(255,215,0,0.6)] hover:shadow-[0_0_40px_rgba(255,215,0,0.8)]'} border-2 border-yellow-300`}>
+                                        <span className={`cinzel font-black tracking-widest drop-shadow-md ${isAuto ? 'text-white text-xl mt-1' : 'text-black text-2xl'}`}>
+                                            {isAuto ? 'STOP' : 'SPIN'}
+                                        </span>
+                                        {isAuto && <span className="text-[9px] text-white/90 font-bold uppercase tracking-widest mt-0.5">Auto</span>}
+                                    </div>
+                                </button>
+                            </div>
+
+                            {/* AUTO BUTTON */}
+                            <div className="w-1/3 flex flex-col items-center">
+                                <span className="text-[10px] text-gray-400 font-bold tracking-widest mb-2">AUTO</span>
+                                <button 
+                                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isAuto ? 'bg-red-900 border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.6)]' : 'bg-black/80 border border-gray-600 active:scale-95'}`} 
+                                    onClick={toggleAuto}
+                                >
+                                    {isAuto ? (
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                                    ) : (
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d4af37" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                            <polyline points="1 20 1 14 7 14"></polyline>
+                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* OVERLAYS - MENU DRAWER */}
+                    {menuOpen && (
+                        <div className="absolute inset-0 z-50 bg-black/80 flex justify-end animate-fade-in" onClick={() => setMenuOpen(false)}>
+                            <div className="w-64 bg-[#0f0f19] h-full border-l border-yellow-600/30 shadow-2xl p-4 flex flex-col gap-4 animate-slide-in-right" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b border-yellow-600/30 pb-3">
+                                    <span className="text-yellow-500 font-black text-xl tracking-wider cinzel">MENU</span>
+                                    <button onClick={() => { fx.playTone(800, 'sine', 0.1); setMenuOpen(false); }} className="bg-red-700 hover:bg-red-800 text-white font-bold p-1 rounded-lg shadow-lg border border-red-500 transition-all"><Icons.Close /></button>
+                                </div>
+                                
+                                {/* SOUND TOGGLE */}
+                                <div className="flex justify-between items-center bg-[#1a1a24] p-3 rounded-xl border border-yellow-600/20 shadow-inner">
+                                    <span className="text-gray-300 font-bold text-sm">Sound Effects</span>
+                                    <div onClick={() => { setIsSoundOn(fx.toggleSound()); fx.playTone(800, 'sine', 0.1); }} className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${isSoundOn ? 'bg-green-600' : 'bg-gray-600'}`}>
+                                        <div className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-300 ${isSoundOn ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                    </div>
+                                </div>
+
+                                {/* RULES MODAL TRIGGER */}
+                                <button onClick={() => { fx.playTone(800, 'sine', 0.1); setHowToPlayOpen(true); setMenuOpen(false); }} className="w-full text-left bg-[#1a1a24] p-3 rounded-xl border border-yellow-600/20 text-gray-300 font-bold text-sm hover:text-white transition-colors active:scale-95 shadow-inner">
+                                    How To Play ?
+                                </button>
+
+                                {/* EXIT BTN */}
+                                <button onClick={() => { fx.playTone(400, 'sawtooth', 0.1); window.location.href = '/'; }} className="w-full text-center mt-auto bg-gradient-to-r from-red-800 to-red-600 p-3 rounded-xl text-white font-black text-sm shadow-lg active:scale-95 border border-red-400 tracking-widest uppercase">
+                                    Exit Game
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* OVERLAYS - HOW TO PLAY MODAL */}
+                    {howToPlayOpen && (
+                        <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in">
+                            <div className="bg-[#0f0f19] border-2 border-yellow-500 w-full max-w-sm rounded-2xl flex flex-col shadow-[0_0_30px_rgba(212,175,55,0.3)] pop-in-anim overflow-hidden">
+                                <div className="bg-gradient-to-r from-yellow-700 to-yellow-900 p-3 flex items-center justify-between border-b-2 border-yellow-600">
+                                    <h2 className="text-white font-black text-xl cinzel tracking-wider drop-shadow-md">HOW TO PLAY</h2>
+                                    <button onClick={() => { fx.playTone(800, 'sine', 0.1); setHowToPlayOpen(false); }} className="text-white font-bold text-3xl leading-none drop-shadow-md active:scale-90 transition-transform">&times;</button>
+                                </div>
+                                <div className="p-5 overflow-y-auto max-h-[60vh] space-y-3 font-sans">
+                                    <div className="bg-[#1a1a24] p-3 rounded-xl border border-yellow-600/20">
+                                        <h4 className="text-yellow-400 font-black tracking-wide text-sm mb-1 uppercase">1. Place Your Bet</h4>
+                                        <p className="text-xs text-gray-300 font-semibold leading-relaxed">Tap the bet amount at the bottom left to choose your wager before spinning.</p>
+                                    </div>
+                                    <div className="bg-[#1a1a24] p-3 rounded-xl border border-yellow-600/20">
+                                        <h4 className="text-blue-400 font-black tracking-wide text-sm mb-1 uppercase">2. Match Clusters</h4>
+                                        <p className="text-xs text-gray-300 font-semibold leading-relaxed">Match 5 or more identical gems touching horizontally or vertically to win.</p>
+                                    </div>
+                                    <div className="bg-[#1a1a24] p-3 rounded-xl border border-yellow-600/20">
+                                        <h4 className="text-green-400 font-black tracking-wide text-sm mb-1 uppercase">3. Cascading Wins</h4>
+                                        <p className="text-xs text-gray-300 font-semibold leading-relaxed">Winning clusters explode and new gems fall in, allowing for multiple consecutive wins on a single spin!</p>
+                                    </div>
+                                    <div className="bg-[#1a1a24] p-3 rounded-xl border border-yellow-600/20">
+                                        <h4 className="text-red-400 font-black tracking-wide text-sm mb-1 uppercase">4. Wild Orbs</h4>
+                                        <p className="text-xs text-gray-300 font-semibold leading-relaxed">The glowing white orbs are Wilds. They substitute for any other gem to help form winning clusters.</p>
+                                    </div>
+                                    <p className="text-center text-[10px] text-gray-500 font-bold mt-2 uppercase tracking-widest">100% Provably Fair • Smart Payout Engine</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

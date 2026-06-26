@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Money Coming - Ultimate Casino Trap</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+    
+    <!-- Firebase App & Database SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Lilita+One&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #000;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Russo One', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .bg-pattern {
+            background-color: #4a0e0e;
+            background-image: radial-gradient(#6b1616 1px, transparent 1px);
+            background-size: 10px 10px;
+        }
+
+        .gold-gradient {
+            background: linear-gradient(to bottom, #fceabb 0%, #f8b500 50%, #fceabb 100%);
+        }
+
+        .gold-border {
+            border: 2px solid #ffdf00;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5), inset 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+
+        .text-glow {
+            text-shadow: 0 0 5px #fff, 0 0 10px #ff0, 0 0 20px #f8b500, 0 0 30px #f8b500;
+        }
+
+        .text-outline {
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .reel-container {
+            background: linear-gradient(to bottom, #115c20, #2ecc71, #115c20);
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.5), inset 0 -10px 20px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+        .bonus-reel {
+            background: linear-gradient(to bottom, #b38728, #fbf5b7, #b38728);
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.5), inset 0 -10px 20px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+        /* Number Highlight Animation */
+        .highlight-glow {
+            box-shadow: 0 0 20px 5px #ffdf00, inset 0 0 15px 5px #ffdf00 !important;
+            border: 2px solid #fff;
+            animation: pulseGlow 0.8s infinite alternate;
+            z-index: 20;
+            position: relative;
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1); filter: brightness(1); }
+            100% { transform: scale(1.08); filter: brightness(1.4); }
+        }
+
+        /* Pop-up Animation */
+        .popup-anim {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.5) translateY(50px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .symbol {
+            font-family: 'Lilita One', cursive;
+            font-size: 3.5rem;
+            color: #fceabb;
+            text-shadow: 2px 2px 0 #000, 0 5px 5px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center; height: 100px;
+        }
+        
+        .bonus-symbol {
+            font-family: 'Lilita One', cursive;
+            font-size: 2rem;
+            color: #4a0e0e;
+            text-shadow: 1px 1px 0 #fff;
+            display: flex; align-items: center; justify-content: center; height: 100px;
+        }
+
+        @keyframes spinBlur {
+            0% { filter: blur(0px); transform: translateY(0); }
+            50% { filter: blur(5px); transform: translateY(-25px); }
+            100% { filter: blur(0px); transform: translateY(0); }
+        }
+
+        .spinning .symbol, .spinning .bonus-symbol {
+            animation: spinBlur 0.08s infinite linear;
+            color: rgba(255,255,255,0.4);
+        }
+
+        .wheel-container {
+            position: relative; width: 250px; height: 250px;
+            border-radius: 50%; border: 8px solid #f8b500;
+            box-shadow: 0 0 20px #f8b500, inset 0 0 20px rgba(0,0,0,0.8);
+            background: conic-gradient(
+                #2ecc71 0deg 45deg, #fceabb 45deg 90deg, #2ecc71 90deg 135deg,
+                #fceabb 135deg 180deg, #2ecc71 180deg 225deg, #fceabb 225deg 270deg,
+                #e74c3c 270deg 315deg, #fceabb 315deg 360deg
+            );
+        }
+
+        .wheel-segment-text {
+            position: absolute; top: 50%; left: 50%; width: 50%; height: 20px;
+            transform-origin: 0% 50%; text-align: right; padding-right: 15px;
+            font-size: 1.2rem; font-weight: bold; color: #000; margin-top: -10px;
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.5);
+        }
+
+        .game-title {
+            font-family: 'Lilita One', cursive;
+            color: #FFD700;
+            text-shadow: 
+                -2px -2px 0 #b30000,  
+                 2px -2px 0 #b30000,
+                -2px  2px 0 #b30000,
+                 2px  2px 0 #b30000,
+                 0 4px 0 #800000,
+                 0 5px 15px rgba(0,0,0,0.9);
+            font-size: 2.8rem;
+            line-height: 1.1;
+            letter-spacing: 1px;
+            display: inline-block;
+        }
+
+        .game-title-small {
+            font-family: 'Lilita One', cursive;
+            color: #FFD700;
+            text-shadow: -1px -1px 0 #b30000, 1px -1px 0 #b30000, -1px 1px 0 #b30000, 1px 1px 0 #b30000, 0 2px 0 #800000;
+            font-size: 1.25rem;
+            letter-spacing: 1px;
+        }
+
+        .spin-button {
+            background: radial-gradient(circle at 50% 30%, #5ce65c, #115c20);
+            border: 4px solid #f8b500; box-shadow: 0 8px 0 #0a3813, 0 10px 10px rgba(0,0,0,0.5);
+            transition: all 0.1s;
+        }
+        .spin-button:active:not(:disabled) {
+            transform: translateY(8px); box-shadow: 0 0 0 #0a3813, 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .spin-button:disabled { filter: grayscale(100%); cursor: not-allowed; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #f8b500; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCd0sxHVTqBG3I6MhvP4mebxUS7EofkTo",
+            authDomain: "inr-club-d4500.firebaseapp.com",
+            databaseURL: "https://inr-club-d4500-default-rtdb.firebaseio.com",
+            projectId: "inr-club-d4500",
+            storageBucket: "inr-club-d4500.firebasestorage.app",
+            messagingSenderId: "496374937195",
+            appId: "1:496374937195:web:a0d7fc817e1b02fe23a32e"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const database = firebase.database();
+        const activePhone = localStorage.getItem('user_phone') || localStorage.getItem('inr_club_active_phone');
+
+        // Robust Login check
+        if (!activePhone) {
+            window.location.href = '/';
+        }
+
+        // --- Audio Synthesizer ---
+        class AudioEngine {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.initialized = false;
+                this.muted = false;
+            }
+            init() {
+                if (!this.initialized) { this.ctx.resume(); this.initialized = true; }
+            }
+            playTone(freq, type, duration, vol=0.1) {
+                if (!this.initialized || this.muted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playClick() { this.playTone(600, 'sine', 0.1, 0.2); }
+            playSpinTick() { this.playTone(800, 'triangle', 0.05, 0.05); }
+            playStop() { this.playTone(300, 'square', 0.1, 0.2); }
+            playHighlight() { this.playTone(1200, 'sine', 0.2, 0.3); }
+            playWinPopup() {
+                setTimeout(() => this.playTone(400, 'square', 0.1, 0.2), 0);
+                setTimeout(() => this.playTone(600, 'square', 0.1, 0.2), 100);
+                setTimeout(() => this.playTone(800, 'square', 0.4, 0.3), 200);
+            }
+            playBigWinPopup() {
+                let time = 0;
+                for(let i=0; i<10; i++) {
+                    setTimeout(() => this.playTone(400 + (i*50), 'square', 0.1, 0.3), time);
+                    time += 100;
+                }
+            }
+        }
+        const audio = new AudioEngine();
+
+        const REEL_SYMBOLS = ['1','2','3','4','5','6','7','8','9','0','-'];
+
+        // --- Premium SVGs ---
+        const IconSettings = () => <svg className="w-6 h-6 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>;
+        const IconInfo = () => <svg className="w-6 h-6 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>;
+        const IconLock = () => <svg className="w-12 h-12 text-yellow-500 mb-1 drop-shadow-[0_0_8px_rgba(234,179,8,1)]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>;
+        const IconChevronDown = () => <svg className="w-4 h-4 ml-1 inline text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>;
+        const IconClose = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>;
+        const IconSoundOn = () => <svg className="w-6 h-6 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>;
+        const IconSoundOff = () => <svg className="w-6 h-6 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd"></path><path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>;
+
+        const Wheel = ({ bet, spinning, wheelTarget, onWheelStopped, wheelValues }) => {
+            const [rotation, setRotation] = useState(0);
+            const rotationRef = useRef(0);
+            const requestRef = useRef();
+            const lastTimeRef = useRef();
+            const isLocked = bet < 5;
+
+            const animate = (time) => {
+                if (lastTimeRef.current !== undefined) {
+                    const delta = time - lastTimeRef.current;
+                    if (!spinning) {
+                        rotationRef.current = (rotationRef.current + delta * 0.03) % 360; 
+                        setRotation(rotationRef.current);
+                    }
+                }
+                lastTimeRef.current = time;
+                requestRef.current = requestAnimationFrame(animate);
+            };
+
+            useEffect(() => {
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [spinning]);
+
+            useEffect(() => {
+                if (spinning) {
+                    const spins = 8;
+                    const sliceAngle = 360 / wheelValues.length;
+                    const targetIndex = wheelValues.indexOf(wheelTarget);
+                    const sliceToLand = wheelValues.length - 1 - targetIndex;
+                    const nearMissOffset = (sliceAngle / 2) * 0.8; 
+                    
+                    const targetRotation = rotationRef.current + (spins * 360) + (sliceToLand * sliceAngle) + nearMissOffset;
+                    
+                    setRotation(targetRotation);
+                    rotationRef.current = targetRotation; 
+                    
+                    setTimeout(() => onWheelStopped(wheelTarget), 4000); 
+                }
+            }, [spinning, wheelTarget]);
+
+            return (
+                <div className="flex justify-center items-center mt-4 relative">
+                    <div className="absolute top-[-15px] z-20 text-green-500" style={{ filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.8))' }}>
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L22 20H2L12 2Z" transform="rotate(180 12 12)" stroke="white" strokeWidth="1" />
+                        </svg>
+                    </div>
+                    
+                    <div className="wheel-container" style={{ 
+                        transform: `rotate(${rotation}deg)`,
+                        transition: spinning ? 'transform 4s cubic-bezier(0.1, 0.8, 0.2, 1)' : 'none'
+                    }}>
+                        {wheelValues.map((val, i) => (
+                            <div key={i} className="wheel-segment-text" style={{ transform: `rotate(${i * (360 / wheelValues.length)}deg)` }}>
+                                {val}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="absolute w-16 h-16 rounded-full gold-gradient gold-border flex items-center justify-center z-10 font-bold text-3xl text-yellow-800 shadow-xl">$</div>
+                    
+                    {isLocked && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-full m-2">
+                            <IconLock />
+                            <div className="bg-black/90 px-4 py-2 rounded-lg text-center border border-yellow-600 shadow-xl">
+                                <span className="text-yellow-400 text-sm font-bold block">Bet 5 to Unlock</span>
+                                <span className="text-gray-300 text-xs">Lucky Wheel</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const Reel = ({ symbol, isSpinning, isBonus, isHighlighted }) => {
+            const [displaySymbol, setDisplaySymbol] = useState(symbol);
+
+            useEffect(() => {
+                let interval;
+                if (isSpinning) {
+                    const options = isBonus ? ['2x','5x','10x','🔒','SPIN'] : REEL_SYMBOLS;
+                    interval = setInterval(() => setDisplaySymbol(options[Math.floor(Math.random() * options.length)]), 80);
+                } else setDisplaySymbol(symbol);
+                return () => clearInterval(interval);
+            }, [isSpinning, symbol, isBonus]);
+
+            return (
+                <div className={`relative flex-1 ${isBonus ? 'bonus-reel' : 'reel-container'} rounded-lg border-y-4 border-yellow-600 overflow-hidden ${isHighlighted ? 'highlight-glow' : ''}`}>
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/40 pointer-events-none z-10"></div>
+                    <div className={`flex items-center justify-center h-24 ${isSpinning ? 'spinning' : ''}`}>
+                        <span className={isBonus ? 'bonus-symbol' : 'symbol'}>{displaySymbol}</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [balance, setBalance] = useState(0.00); 
+            const [bet, setBet] = useState(10);
+            const [soundEnabled, setSoundEnabled] = useState(true);
+            
+            const [betModalOpen, setBetModalOpen] = useState(false);
+            const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+            const [rulesModalOpen, setRulesModalOpen] = useState(false);
+
+            const [reels, setReels] = useState(['-', '-', '-']);
+            const [bonusReel, setBonusReel] = useState('🔒');
+            const [highlights, setHighlights] = useState([false, false, false, false]);
+            const [winPopup, setWinPopup] = useState({ show: false, amount: 0 });
+            
+            const [isSpinning, setIsSpinning] = useState(false);
+            const [wheelSpinning, setWheelSpinning] = useState(false);
+            const [wheelTarget, setWheelTarget] = useState(0);
+
+            const [lossStreak, setLossStreak] = useState(0);
+            const [targetStreak, setTargetStreak] = useState(3); 
+
+            const wheelMultipliers = [2, 5, 20, 3, 10, 4, 15, 50]; 
+            const wheelValues = wheelMultipliers.map(m => m * bet);
+
+            // Fetch Data From Firebase
+            useEffect(() => {
+                const savedTarget = localStorage.getItem('mc_targetStreak_final');
+                if (savedTarget) setTargetStreak(parseInt(savedTarget));
+                else setTargetStreak(Math.floor(Math.random() * 4) + 2); 
+
+                const startAudio = () => audio.init();
+                window.addEventListener('click', startAudio, { once: true });
+                window.addEventListener('touchstart', startAudio, { once: true });
+
+                // FIREBASE REAL-TIME BALANCE LISTENER
+                if (!activePhone) return;
+                const userRef = database.ref('users/' + activePhone);
+                const handleValue = (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const bal = data.balance !== undefined ? data.balance : data.totalBalance;
+                        if (bal !== undefined) {
+                            setBalance(Number(bal));
+                        }
+                    }
+                };
+                userRef.on('value', handleValue);
+                return () => userRef.off('value', handleValue);
+            }, []);
+
+            // Secure Balance Sync Function
+            const syncBalance = (updater) => {
+                setBalance(prevBalance => {
+                    const newBalance = typeof updater === 'function' ? updater(prevBalance) : updater;
+                    if (activePhone) {
+                        database.ref('users/' + activePhone).update({ balance: parseFloat(newBalance.toFixed(2)) });
+                    }
+                    return newBalance;
+                });
+            };
+
+            useEffect(() => {
+                localStorage.setItem('mc_targetStreak_final', targetStreak.toString());
+            }, [targetStreak]);
+
+            // NEW CODE: Function to push game history to Firebase for home.html
+            const pushGameHistoryToFirebase = (betAmt, winAmt, status, multiplierText) => {
+                if (!activePhone) return;
+                const userGamesHistoryRef = database.ref(`users/${activePhone}/history/games`);
+                const uniqueKey = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                const netAmt = status === 'Succeed' ? (winAmt - betAmt) : -betAmt;
+                const periodStr = Math.floor(Date.now() / 1000).toString().slice(-6); 
+
+                userGamesHistoryRef.child(uniqueKey).set({
+                    game: 'Money Coming',
+                    period: periodStr,
+                    selection: status === 'Succeed' ? multiplierText : 'Lost',
+                    amount: betAmt,
+                    status: status,
+                    net: netAmt,
+                    date: new Date().toLocaleString(),
+                    timestamp: Date.now()
+                });
+            };
+
+            const changeBetDirectly = (amount) => {
+                audio.playClick();
+                setBet(amount);
+                if (amount < 5) setBonusReel('🔒');
+                else if (amount === 5 && bonusReel === '10x') setBonusReel('5x');
+                setBetModalOpen(false);
+            };
+
+            const adjustBet = (dir) => {
+                audio.playClick();
+                const bets = [1, 5, 10, 20, 50];
+                let idx = bets.indexOf(bet);
+                if (dir === 1 && idx < bets.length - 1) changeBetDirectly(bets[idx + 1]);
+                if (dir === -1 && idx > 0) changeBetDirectly(bets[idx - 1]);
+            };
+
+            const toggleSound = () => {
+                const newState = !soundEnabled;
+                setSoundEnabled(newState);
+                audio.muted = !newState;
+                if(newState) audio.playClick();
+            };
+
+            const exitGame = () => {
+                audio.playClick();
+                window.location.href = '/';
+            };
+
+            const redirectDeposit = () => {
+                audio.playClick();
+                window.location.href = '/deposit';
+            };
+
+            const generateReelsForWin = (targetWin, currentBet) => {
+                let availableMultis = ['🔒'];
+                if (currentBet >= 5) availableMultis.push('2x', '5x');
+                if (currentBet >= 10) availableMultis.push('10x');
+                availableMultis.sort(() => Math.random() - 0.5);
+                
+                let chosenMulti = '🔒';
+                let baseAmount = targetWin;
+                
+                for (let m of availableMultis) {
+                    let mVal = m === '🔒' ? 1 : parseInt(m.replace('x', ''));
+                    if (targetWin % mVal === 0 && (targetWin / mVal) <= 999) {
+                        chosenMulti = m;
+                        baseAmount = targetWin / mVal;
+                        break;
+                    }
+                }
+                
+                let str = baseAmount.toString().padStart(3, '0');
+                let r1 = str[0], r2 = str[1], r3 = str[2];
+                if (r1 === '0') r1 = '-';
+                if (r1 === '-' && r2 === '0') r2 = '-';
+                if (r1 === '-' && r2 === '-' && r3 === '0') r3 = '-'; 
+                return { r1, r2, r3, bR: chosenMulti };
+            };
+
+            const executeSpin = () => {
+                if (isSpinning || wheelSpinning || winPopup.show) return;
+                
+                if (balance < bet) {
+                    audio.playClick();
+                    window.location.href = '/deposit';
+                    return;
+                }
+                
+                audio.playClick();
+                // Deduct Balance to Firebase instantly
+                syncBalance(b => b - bet);
+
+                setHighlights([false, false, false, false]);
+                setWinPopup({ show: false, amount: 0 });
+                setIsSpinning(true);
+
+                let spinTicks = 0;
+                const tickInterval = setInterval(() => {
+                    if(spinTicks < 15) { audio.playSpinTick(); spinTicks++; }
+                }, 100);
+
+                setTimeout(() => {
+                    clearInterval(tickInterval);
+                    audio.playStop();
+
+                    let r1, r2, r3, bR;
+                    let calculatedFinalWin = 0;
+
+                    if (lossStreak >= targetStreak) {
+                        let targetWin = 0;
+                        const isRareBigWin = Math.random() < 0.15; 
+                        
+                        if (isRareBigWin) {
+                            const rareMultipliers = [1.5, 2, 2.5];
+                            const multi = rareMultipliers[Math.floor(Math.random() * rareMultipliers.length)];
+                            targetWin = Math.floor(bet * multi);
+                        } else {
+                            const standardMultipliers = [0.2, 0.4, 0.5, 0.8, 1, 1.2];
+                            const multi = standardMultipliers[Math.floor(Math.random() * standardMultipliers.length)];
+                            targetWin = Math.floor(bet * multi);
+                        }
+                        
+                        if (targetWin < 1) targetWin = 1; 
+
+                        const result = generateReelsForWin(targetWin, bet);
+                        r1 = result.r1; r2 = result.r2; r3 = result.r3; bR = result.bR;
+                        calculatedFinalWin = targetWin;
+
+                        setLossStreak(0); 
+                        setTargetStreak(Math.floor(Math.random() * 4) + 2); 
+                    } else {
+                        const chance = Math.random();
+                        if (chance < 0.95) { 
+                            const result = generateReelsForWin(0, bet); 
+                            r1 = result.r1; r2 = result.r2; r3 = result.r3; 
+                            if (bet >= 10) bR = Math.random() > 0.5 ? '10x' : '5x';
+                            else if (bet >= 5) bR = '5x';
+                            else bR = '🔒';
+                            setLossStreak(prev => prev + 1);
+                        } else {
+                            if (bet >= 5) { 
+                                r1 = '-'; r2 = '-'; r3 = '-'; bR = 'SPIN';
+                                setWheelTarget(bet * (Math.random() > 0.5 ? 2 : 3)); 
+                            } else {
+                                const result = generateReelsForWin(0, bet);
+                                r1 = result.r1; r2 = result.r2; r3 = result.r3; bR = '🔒';
+                                setLossStreak(prev => prev + 1);
+                            }
+                        }
+                    }
+
+                    setReels([r1, r2, r3]);
+                    setBonusReel(bR);
+
+                    if (bR === 'SPIN') {
+                        setIsSpinning(false);
+                        setWheelSpinning(true);
+                        setLossStreak(0);
+                        setTargetStreak(Math.floor(Math.random() * 4) + 2); 
+                    } else {
+                        handleHighlightAndWin(r1, r2, r3, bR, calculatedFinalWin);
+                        
+                        // NEW CODE: Push Spin Result to Firebase History
+                        const status = calculatedFinalWin > 0 ? 'Succeed' : 'Failed';
+                        const multiplierText = calculatedFinalWin > 0 ? `${(calculatedFinalWin / bet).toFixed(2)}x` : '0x';
+                        pushGameHistoryToFirebase(bet, calculatedFinalWin, status, multiplierText);
+                    }
+
+                }, 1500);
+            };
+
+            const handleHighlightAndWin = (r1, r2, r3, bR, finalWin) => {
+                setIsSpinning(false);
+                if (finalWin > 0) {
+                    const newH = [r1 !== '-', r2 !== '-', r3 !== '-', bR !== '🔒' && bR !== 'SPIN'];
+                    setTimeout(() => {
+                        setHighlights(newH);
+                        audio.playHighlight();
+                    }, 300);
+
+                    setTimeout(() => {
+                        setWinPopup({ show: true, amount: finalWin });
+                        if (finalWin > bet) audio.playBigWinPopup();
+                        else audio.playWinPopup();
+                        
+                        // Add Win Balance to Firebase instantly
+                        syncBalance(b => b + finalWin);
+
+                        setTimeout(() => {
+                            setWinPopup({ show: false, amount: 0 });
+                            setHighlights([false, false, false, false]);
+                        }, 2500);
+                    }, 1000); 
+                }
+            };
+
+            const handleWheelStopped = (wheelAmount) => {
+                setWheelSpinning(false);
+                setWinPopup({ show: true, amount: wheelAmount });
+                audio.playWinPopup();
+                
+                // Add Wheel Win Balance to Firebase instantly
+                syncBalance(b => b + wheelAmount);
+
+                // NEW CODE: Push Wheel Bonus Result to Firebase History
+                const multiplierText = `${(wheelAmount / bet).toFixed(2)}x (Wheel)`;
+                pushGameHistoryToFirebase(bet, wheelAmount, 'Succeed', multiplierText);
+
+                setTimeout(() => setWinPopup({ show: false, amount: 0 }), 2500);
+            };
+
+            return (
+                <div className="min-h-screen bg-pattern flex flex-col justify-between max-w-md mx-auto relative shadow-2xl text-white select-none">
+                    
+                    {winPopup.show && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all">
+                            <div className="popup-anim flex flex-col items-center justify-center text-center">
+                                <div className="text-6xl font-extrabold text-yellow-400 text-glow mb-4" style={{fontFamily: "'Lilita One', cursive", letterSpacing: '2px'}}>YOU WIN!</div>
+                                <div className="bg-gradient-to-b from-green-400 to-green-700 text-white border-4 border-yellow-400 rounded-full px-12 py-5 text-6xl font-bold shadow-[0_0_40px_#4ade80]">
+                                    ₹ {winPopup.amount.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {betModalOpen && (
+                        <div className="absolute inset-0 z-40 bg-black/80 flex items-end justify-center pb-20 popup-anim">
+                            <div className="bg-[#2a0e0e] w-11/12 border-2 border-yellow-600 rounded-2xl p-4 shadow-2xl relative">
+                                <button onClick={() => {audio.playClick(); setBetModalOpen(false);}} className="absolute top-2 right-2 text-gray-400 hover:text-white"><IconClose /></button>
+                                <h3 className="text-center text-yellow-500 font-bold text-xl mb-4">Select Bet Amount</h3>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {[1, 5, 10, 20, 50].map(amt => (
+                                        <button key={amt} onClick={() => changeBetDirectly(amt)} 
+                                            className={`py-3 rounded-lg font-bold text-xl transition ${bet === amt ? 'bg-yellow-500 text-black border-2 border-white scale-105' : 'bg-black/50 text-yellow-400 border border-yellow-800 active:scale-95'}`}>
+                                            ₹ {amt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {settingsModalOpen && (
+                        <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center popup-anim">
+                            <div className="bg-[#1a0a0a] w-10/12 border-2 border-yellow-600 rounded-2xl p-6 shadow-2xl relative">
+                                <button onClick={() => {audio.playClick(); setSettingsModalOpen(false);}} className="absolute top-3 right-3 text-gray-400 hover:text-white"><IconClose /></button>
+                                <h2 className="text-center text-yellow-500 font-bold text-2xl mb-6 flex items-center justify-center gap-2"><IconSettings/> Settings</h2>
+                                
+                                <button onClick={toggleSound} className="w-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white p-4 rounded-xl mb-4 text-lg font-bold transition">
+                                    {soundEnabled ? <><IconSoundOn/> Sound: ON</> : <><IconSoundOff/> Sound: OFF</>}
+                                </button>
+                                
+                                <button onClick={() => {audio.playClick(); setSettingsModalOpen(false); setRulesModalOpen(true);}} className="w-full flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-xl mb-4 text-lg font-bold shadow-md active:scale-95 transition">
+                                    <IconInfo/> <span className="ml-2">How to Play</span>
+                                </button>
+
+                                <button onClick={exitGame} className="w-full flex items-center justify-center bg-gradient-to-r from-red-600 to-red-800 text-white p-4 rounded-xl text-lg font-bold shadow-md active:scale-95 transition">
+                                    Exit Game
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {rulesModalOpen && (
+                        <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center popup-anim px-4">
+                            <div className="bg-[#2a0e0e] w-full max-w-sm border-2 border-yellow-600 rounded-2xl p-6 shadow-2xl relative">
+                                <button onClick={() => {audio.playClick(); setRulesModalOpen(false);}} className="absolute top-3 right-3 text-gray-400 hover:text-white"><IconClose /></button>
+                                <h2 className="text-center text-yellow-500 font-bold text-2xl mb-4">How To Play</h2>
+                                <div className="space-y-3 text-sm text-gray-200 font-sans">
+                                    <p><strong className="text-yellow-400">1.</strong> Choose your Bet Amount at the bottom.</p>
+                                    <p><strong className="text-yellow-400">2.</strong> Press SPIN. Match numbers left to right to win. (e.g. 1 0 0 = ₹100)</p>
+                                    <p><strong className="text-yellow-400">3.</strong> Bet <strong>₹5 or more</strong> to unlock the 2x/5x multipliers and the Lucky Wheel.</p>
+                                    <p><strong className="text-yellow-400">4.</strong> Bet <strong>₹10 or more</strong> to unlock the massive 10x multiplier!</p>
+                                    <p><strong className="text-yellow-400">5.</strong> Hit "SPIN" on the last reel to trigger the big Wheel Bonus!</p>
+                                </div>
+                                <button onClick={() => {audio.playClick(); setRulesModalOpen(false);}} className="mt-6 w-full bg-yellow-500 text-black p-3 rounded-xl font-bold active:scale-95">Got it!</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Top Bar */}
+                    <div className="flex justify-between items-center p-3 bg-black/50 border-b border-yellow-600/50 z-10">
+                        <div className="flex items-center gap-2">
+                            <span className="game-title-small drop-shadow-lg">Money Coming</span>
+                        </div>
+                        <div className="bg-white rounded-full px-3 py-1.5 flex items-center gap-2 text-black font-sans font-bold text-sm shadow-inner cursor-pointer" onClick={redirectDeposit}>
+                            <span className="bg-yellow-400 rounded-full w-5 h-5 flex items-center justify-center text-xs">₹</span>
+                            {balance.toFixed(2)}
+                            <button className="bg-orange-500 text-white rounded-full px-3 text-xs py-1 ml-1 shadow-md active:scale-95">Add Cash</button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center justify-start pt-2 px-4 z-10">
+                        <Wheel bet={bet} spinning={wheelSpinning} wheelTarget={wheelTarget} wheelValues={wheelValues} onWheelStopped={handleWheelStopped} />
+
+                        <div className="mt-4 mb-2 text-center">
+                            <h1 className="game-title">Money Coming</h1>
+                        </div>
+
+                        <div className="w-full bg-gradient-to-r from-red-900 via-red-800 to-red-900 border-2 border-yellow-600 rounded mt-2 p-1 text-center shadow-[0_4px_10px_rgba(0,0,0,0.5)]">
+                            <div className="flex justify-center items-center gap-2 text-yellow-100 text-sm mb-1">
+                                <span>Bet <strong className="text-yellow-400">5</strong> unlock</span>
+                                <span className="bg-green-600 text-xs px-1 rounded border border-green-400 shadow-sm">SCATTER</span>
+                            </div>
+                            <div className="flex justify-center items-center gap-2 text-yellow-100 text-sm bg-black/30 rounded py-1">
+                                <span>Bet <strong className="text-yellow-400">10</strong> unlock</span>
+                                <span className="text-yellow-300 font-bold bg-purple-800 px-1 rounded border border-purple-400 shadow-sm">10x</span>
+                            </div>
+                        </div>
+
+                        <div className="w-full mt-4 gold-gradient p-1 rounded-xl shadow-[0_10px_20px_rgba(0,0,0,0.8)] relative">
+                            <div className="bg-[#1a0a0a] rounded-lg p-2 flex gap-1 justify-between">
+                                <Reel symbol={reels[0]} isSpinning={isSpinning} isHighlighted={highlights[0]} />
+                                <Reel symbol={reels[1]} isSpinning={isSpinning} isHighlighted={highlights[1]} />
+                                <Reel symbol={reels[2]} isSpinning={isSpinning} isHighlighted={highlights[2]} />
+                                <div className="w-1 bg-gradient-to-b from-yellow-400 via-yellow-200 to-yellow-400 rounded-full mx-1 shadow-glow"></div>
+                                <Reel symbol={bonusReel} isSpinning={isSpinning} isBonus={true} isHighlighted={highlights[3]} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-gradient-to-t from-black to-black/80 p-4 border-t-2 border-yellow-600 flex justify-between items-end pb-8 z-10">
+                        <div className="flex gap-3 mb-2">
+                            <button onClick={() => {audio.playClick(); setSettingsModalOpen(true);}} className="w-11 h-11 rounded-full bg-gradient-to-b from-gray-700 to-gray-900 border-2 border-gray-500 flex items-center justify-center shadow-lg active:scale-90 hover:border-white transition">
+                                <IconSettings />
+                            </button>
+                            <button onClick={() => {audio.playClick(); setRulesModalOpen(true);}} className="w-11 h-11 rounded-full bg-gradient-to-b from-blue-500 to-blue-800 border-2 border-blue-400 flex items-center justify-center shadow-lg active:scale-90 animate-pulse hover:border-white transition">
+                                <IconInfo />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col items-center">
+                            <div className="flex items-center gap-2 bg-[#2a0e0e] rounded-full p-1 border border-yellow-800 mb-2 shadow-inner">
+                                <button onClick={() => adjustBet(-1)} disabled={isSpinning || winPopup.show} className="w-9 h-9 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 text-black font-bold shadow-md active:scale-90 disabled:opacity-50 text-lg">-</button>
+                                
+                                <div onClick={() => { if(!isSpinning) { audio.playClick(); setBetModalOpen(true); } }} className="text-center min-w-[70px] cursor-pointer hover:bg-white/10 rounded px-2 transition active:scale-95">
+                                    <div className="text-[10px] text-gray-400 font-sans uppercase tracking-wider">Total Bet</div>
+                                    <div className="text-xl text-yellow-400 font-bold flex items-center justify-center">{bet} <IconChevronDown/></div>
+                                </div>
+
+                                <button onClick={() => adjustBet(1)} disabled={isSpinning || winPopup.show} className="w-9 h-9 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 text-black font-bold shadow-md active:scale-90 disabled:opacity-50 text-lg">+</button>
+                            </div>
+                            <div className="text-sm font-sans text-gray-300">
+                                Balance: <strong className="text-white">₹ {balance.toFixed(2)}</strong>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={executeSpin} 
+                            disabled={isSpinning || wheelSpinning || winPopup.show}
+                            className="spin-button w-24 h-24 rounded-full flex items-center justify-center relative hover:brightness-110"
+                        >
+                            <div className="text-yellow-100 font-bold text-3xl tracking-wider text-outline relative z-10" style={{fontFamily: "'Lilita One', cursive"}}>
+                                SPIN
+                            </div>
+                            <div className="absolute inset-2 rounded-full border-2 border-green-300 opacity-50 pointer-events-none"></div>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

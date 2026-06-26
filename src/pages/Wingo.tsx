@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp, getVipDetails } from '../store';
 import { Header } from '../components/Header';
-import { Clock, BookOpen, Volume2, RefreshCw } from 'lucide-react';
+import { Clock, BookOpen, Volume2, RefreshCw, Home } from 'lucide-react';
 import { rtdb } from '../firebase';
 import { ref, set, update } from 'firebase/database';
 
@@ -326,7 +326,15 @@ export function Wingo() {
 
   return (
     <div className="min-h-screen bg-bg-base relative pb-6">
-      <Header title="" transparent />
+      <Header 
+        title="" 
+        transparent 
+        rightContent={
+          <button onClick={() => navigate('home')} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+            <Home size={20} className="text-white" />
+          </button>
+        }
+      />
 
       {/* Top Banner (Wallet Balance) */}
       <div className="bg-gradient-card pt-14 pb-4 px-4 rounded-b-3xl relative overflow-hidden">

@@ -64,41 +64,125 @@ export function Home() {
       img: '✈️', 
       bg: 'bg-gradient-to-br from-[#2D1B22] to-[#1A1A24]', 
       iconColor: 'text-[#E11D48] text-6xl',
+      url: '/aviator.html',
       tag: '10 SEC',
-      bonus: '+500%'
+      bonus: '+500%',
+      isRoute: false
+    },
+    { 
+      id: 'fortune-gems', 
+      name: 'FORTUNE GEMS', 
+      img: '💎', 
+      bg: 'bg-gradient-to-br from-[#1e3a8a] to-[#172554]', 
+      iconColor: 'text-blue-400 text-6xl',
+      url: '/fortune-gems.html',
+      isRoute: false
+    },
+    { 
+      id: 'fortune-gems-2', 
+      name: 'FORTUNE GEMS 2', 
+      img: '✨', 
+      bg: 'bg-gradient-to-br from-[#450a0a] to-[#171717]', 
+      iconColor: 'text-red-500 text-6xl',
+      url: '/fortune-gems-2.html',
+      isRoute: false
+    },
+    { 
+      id: 'money-coming', 
+      name: 'MONEY COMING', 
+      img: '💰', 
+      bg: 'bg-gradient-to-br from-[#14532d] to-[#052e16]', 
+      iconColor: 'text-green-500 text-6xl',
+      url: '/money-coming.html',
+      isRoute: false
+    },
+    { 
+      id: 'trx', 
+      name: 'TRX HASH', 
+      img: '⚡', 
+      bg: 'bg-gradient-to-br from-[#0f172a] to-[#1e1b4b]', 
+      iconColor: 'text-blue-400 text-6xl',
+      tag: 'POPULAR',
+      isRoute: true
+    },
+    { 
+      id: '5d', 
+      name: '5D LOTTERY', 
+      img: '🎲', 
+      bg: 'bg-gradient-to-br from-[#450a0a] to-[#171717]', 
+      iconColor: 'text-red-500 text-6xl',
+      isRoute: true
+    },
+    { 
+      id: 'k3', 
+      name: 'K3 LOTTERY', 
+      img: '🎯', 
+      bg: 'bg-gradient-to-br from-[#14532d] to-[#052e16]', 
+      iconColor: 'text-green-500 text-6xl',
+      isRoute: true
     },
     { 
       id: 'vortex', 
       name: 'VORTEX', 
       img: '🌀', 
       bg: 'bg-gradient-to-br from-[#2A2D4E] to-[#1A1A24]', 
-      iconColor: 'text-[#818CF8] text-6xl'
+      iconColor: 'text-[#818CF8] text-6xl',
+      isRoute: true
     },
     { 
       id: 'chicken', 
-      name: 'CHICKEN ROAD 2', 
-      img: '🍗', 
+      name: 'CHICKEN ROAD', 
+      img: '🐔', 
       bg: 'bg-gradient-to-br from-[#EF4444] to-[#991B1B]', 
-      iconColor: 'text-white text-6xl shadow-inner'
+      iconColor: 'text-white text-6xl',
+      isRoute: true
     },
     { 
       id: 'mines', 
       name: 'MINES', 
       img: '💎', 
       bg: 'bg-gradient-to-br from-[#8B5CF6] to-[#4C1D95]', 
-      iconColor: 'text-yellow-300 text-6xl'
+      iconColor: 'text-yellow-300 text-6xl',
+      isRoute: true
+    },
+    { 
+      id: 'andar', 
+      name: 'ANDAR BAHAR', 
+      img: '🃏', 
+      bg: 'bg-gradient-to-br from-[#7f1d1d] to-[#450a0a]', 
+      iconColor: 'text-white text-6xl',
+      isRoute: true
+    },
+    { 
+      id: 'crash', 
+      name: 'CRASH', 
+      img: '📈', 
+      bg: 'bg-gradient-to-br from-[#1e3a8a] to-[#172554]', 
+      iconColor: 'text-sky-400 text-6xl',
+      isRoute: true
     },
   ];
 
-  const displayGames = [...staticGames];
+  // Merge static games with dynamic ones from Admin
+  let displayGames = [...staticGames];
   
-  // Add dynamic games from Admin
   if (gamesList && gamesList.length > 0) {
     gamesList.forEach(g => {
-      if (!displayGames.find(sg => sg.id === g.id)) {
+      const existingIdx = displayGames.findIndex(sg => sg.id === g.id);
+      if (existingIdx >= 0) {
+        displayGames[existingIdx] = {
+          ...displayGames[existingIdx],
+          ...g,
+          // Only overwrite if explicitly provided
+          bg: g.bg || displayGames[existingIdx].bg,
+          img: g.img || displayGames[existingIdx].img,
+          name: g.name || displayGames[existingIdx].name,
+          url: g.url || displayGames[existingIdx].url
+        };
+      } else {
         displayGames.push({
           ...g,
-          bg: g.special ? 'bg-gradient-to-br from-blue-600 to-indigo-900' : 'bg-card-base',
+          bg: g.bg || (g.special ? 'bg-gradient-to-br from-blue-600 to-indigo-900' : 'bg-card-base'),
           iconColor: 'text-white text-6xl'
         });
       }
@@ -204,23 +288,25 @@ export function Home() {
       {/* Main Content Area (Sidebar + Grid) */}
       <div className="flex p-3 gap-3 relative">
         {/* Sidebar categories */}
-        <div className="w-20 space-y-3 shrink-0 sticky top-4 z-10 self-start">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`w-full flex flex-col items-center justify-center p-3 rounded-2xl border transition-all h-[84px] shadow-sm ${
-                activeCategory === cat.id 
-                ? 'bg-primary/10 border-primary text-primary' 
-                : 'bg-white/5 border-transparent text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <div className={`${activeCategory === cat.id ? 'text-primary' : 'text-gray-600'} mb-1.5`}>
-                {cat.icon}
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-tight leading-none">{cat.label}</span>
-            </button>
-          ))}
+        <div className="w-20 shrink-0">
+          <div className="w-20 space-y-3 fixed z-10">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`w-full flex flex-col items-center justify-center p-3 rounded-xl border transition-all h-[84px] shadow-sm ${
+                  activeCategory === cat.id 
+                  ? 'bg-primary/10 border-primary text-primary' 
+                  : 'bg-white/5 border-transparent text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <div className={`${activeCategory === cat.id ? 'text-primary' : 'text-gray-600'} mb-1.5`}>
+                  {cat.icon}
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-tight leading-none">{cat.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Game Grid */}
@@ -228,12 +314,14 @@ export function Home() {
           {displayGames.map((game) => (
             <div 
               key={game.id} 
-              className={`relative aspect-[4/5.2] rounded-2xl overflow-hidden shadow-xl active:scale-95 transition-transform group cursor-pointer ${game.bg} border border-white/5`}
+              className={`relative aspect-[4/5.2] rounded-xl overflow-hidden shadow-xl active:scale-95 transition-transform group cursor-pointer ${game.bg} border border-white/5`}
               onClick={() => {
-                if (game.url === 'wingo' || game.isRoute) {
-                  navigate('wingo');
-                } else if (game.url && game.url.startsWith('http')) {
-                  window.open(game.url, '_blank');
+                if (game.url && (game.url.startsWith('http') || game.url.endsWith('.html'))) {
+                  window.location.href = game.url;
+                } else if (game.url) {
+                  navigate(game.url);
+                } else if (game.isRoute) {
+                  navigate(game.id);
                 } else {
                   showToast(`${game.name} is coming soon!`);
                 }
@@ -246,7 +334,7 @@ export function Home() {
 
               {/* Tag */}
               {game.tag && (
-                <div className={`absolute top-0 left-0 ${game.id === 'wingo' ? 'bg-black text-yellow-400' : 'bg-[#E11D48] text-white'} text-[9px] font-black px-2.5 py-1.5 rounded-br-2xl rounded-tl-2xl shadow-lg uppercase tracking-tight z-10`}>
+                <div className={`absolute top-0 left-0 ${game.id === 'wingo' ? 'bg-black text-yellow-400' : 'bg-[#E11D48] text-white'} text-[9px] font-black px-2.5 py-1.5 rounded-br-xl rounded-tl-xl shadow-lg uppercase tracking-tight z-10`}>
                   {game.tag}
                 </div>
               )}
@@ -254,7 +342,7 @@ export function Home() {
               {/* Content Center */}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
                 <div className={`${game.iconColor} drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] transform transition-transform duration-300 select-none group-active:scale-90 group-hover:scale-105`}>
-                  {game.img && game.img.startsWith('http') ? (
+                  {game.img && (game.img.startsWith('http') || game.img.startsWith('data:image') || game.img.startsWith('/')) ? (
                     <img src={game.img} alt={game.name} className="w-16 h-16 object-contain" />
                   ) : (
                     <span>{game.img}</span>

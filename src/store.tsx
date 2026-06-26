@@ -259,7 +259,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User>(() => {
     const saved = localStorage.getItem('userState');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try { 
+        const parsed = JSON.parse(saved); 
+        if (parsed.phone) {
+          localStorage.setItem('user_phone', parsed.phone);
+        } else if (!localStorage.getItem('user_phone')) {
+          // If we don't have a phone number, the games will break.
+          // Force them to re-login.
+          localStorage.removeItem('auth');
+          localStorage.removeItem('userState');
+          setTimeout(() => window.location.href = '/', 100);
+        }
+        return parsed; 
+      } catch (e) {}
     }
     return {
       uid: '',
@@ -485,6 +497,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: bonusId, name: 'Welcome Bonus', amount: randomBonus, date: bonusDate
       });
 
+      localStorage.setItem('user_phone', data.phone);
       setUser(newUser);
       setIsAuthenticated(true);
       showToast(`Registered! Got ₹${randomBonus} bonus!`, 3000);
@@ -531,6 +544,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lastLogin: new Date().toLocaleString()
       };
       
+      localStorage.setItem('user_phone', phone);
       setUser(updatedUser);
       setIsAuthenticated(true);
       navigate('home');
@@ -572,6 +586,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('myBets');
     localStorage.removeItem('bonusRecords');
     localStorage.removeItem('auth');
+    localStorage.removeItem('user_phone');
     navigate('login'); 
   };
 
